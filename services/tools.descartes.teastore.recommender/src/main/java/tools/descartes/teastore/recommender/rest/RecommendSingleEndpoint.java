@@ -23,6 +23,7 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Response;
 
+import tools.descartes.teastore.recommender.algorithm.RecommenderEnum;
 import tools.descartes.teastore.recommender.algorithm.RecommenderSelector;
 import tools.descartes.teastore.entities.OrderItem;
 import tools.descartes.teastore.entities.Product;
@@ -46,10 +47,8 @@ public class RecommendSingleEndpoint {
 	 * The returning list does not contain the {@link Product} of the respective
 	 * {@link OrderItem}. It might be empty, however.
 	 * 
-	 * @param item
-	 *            An {@link OrderItem} to use as recommender. Must not be null.
-	 * @param uid
-	 *            The id of the {@link User} to recommend for. May be null.
+	 * @param item An {@link OrderItem} to use as recommender. Must not be null.
+	 * @param uid  The id of the {@link User} to recommend for. May be null.
 	 * @return List of {@link Long} objects, containing all {@link Product} IDs that
 	 *         are recommended to add to the cart, or an INTERNALSERVERERROR, if the
 	 *         recommendation failed.
@@ -61,7 +60,8 @@ public class RecommendSingleEndpoint {
 		}
 		LinkedList<OrderItem> list = new LinkedList<OrderItem>();
 		list.add(item);
-		List<Long> recommended = RecommenderSelector.getInstance().recommendProducts(uid, list);
+		List<Long> recommended = RecommenderSelector.getInstance().recommendProducts(uid, list,
+				RecommenderEnum.random());
 		return Response.ok().entity(recommended).build();
 	}
 }

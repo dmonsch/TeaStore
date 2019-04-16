@@ -23,6 +23,8 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.Map.Entry;
 
+import org.cocome.tradingsystem.inventory.application.store.monitoring.MonitoringMetadata;
+import org.cocome.tradingsystem.inventory.application.store.monitoring.ThreadMonitoringController;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -115,7 +117,7 @@ public abstract class AbstractRecommender implements IRecommender {
 	}
 
 	@Override
-	public List<Long> recommendProducts(Long userid, List<OrderItem> currentItems)
+	public List<Long> recommendProducts(Long userid, List<OrderItem> currentItems, RecommenderEnum recommender)
 			throws UnsupportedOperationException {
 		if (!trainingFinished) {
 			throw new UnsupportedOperationException("This instance is not fully trained yet.");
@@ -124,11 +126,25 @@ public abstract class AbstractRecommender implements IRecommender {
 			// if input is empty return empty list
 			return new LinkedList<>();
 		}
+
 		List<Long> items = new ArrayList<>(currentItems.size());
+		int iterations = 0;
 		for (OrderItem item : currentItems) {
+			long beforeConv = ThreadMonitoringController.getInstance().getTime();
 			items.add(item.getProductId());
+			ThreadMonitoringController.getInstance().logResponseTime(MonitoringMetadata.INTERNAL_CONV_ITEM,
+					MonitoringMetadata.RESOURCE_CPU, beforeConv);
+
+			iterations++;
 		}
-		return execute(userid, items);
+		ThreadMonitoringController.getInstance().logLoopIterationCount(MonitoringMetadata.LOOP_CONVERT, iterations);
+
+		long beforeExec = ThreadMonitoringController.getInstance().getTime();
+		List<Long> result = execute(userid, items);
+		ThreadMonitoringController.getInstance().logResponseTime(MonitoringMetadata.INTERNAL_EXEC_RECOMMEND,
+				MonitoringMetadata.RESOURCE_CPU, beforeExec);
+
+		return result;
 	}
 
 	/**
@@ -137,12 +153,10 @@ public abstract class AbstractRecommender implements IRecommender {
 	 * {@link AbstractRecommender#MAX_NUMBER_OF_RECOMMENDATIONS} highest rated
 	 * recommendations.
 	 * 
-	 * @param priorityList
-	 *            The unfiltered ranking assigning each recommended product ID a
-	 *            score or an importance. Does not need to be sorted.
-	 * @param currentItems
-	 *            The list of item IDs that must NOT be contained in the returned
-	 *            list.
+	 * @param priorityList The unfiltered ranking assigning each recommended product
+	 *                     ID a score or an importance. Does not need to be sorted.
+	 * @param currentItems The list of item IDs that must NOT be contained in the
+	 *                     returned list.
 	 * @return A sorted list of recommendations with a size not greater than
 	 *         {@link AbstractRecommender#MAX_NUMBER_OF_RECOMMENDATIONS}
 	 */
@@ -182,10 +196,8 @@ public abstract class AbstractRecommender implements IRecommender {
 	 * Has to be implemented by subclasses in order to perform actual
 	 * recommendation.
 	 * 
-	 * @param userid
-	 *            The id of the {@link User} to recommend for. May be null.
-	 * @param currentItems
-	 *            A list containing all ids of {@link OrderItem}s.
+	 * @param userid       The id of the {@link User} to recommend for. May be null.
+	 * @param currentItems A list containing all ids of {@link OrderItem}s.
 	 * @return List of all IDs of the {@link Product} entities that are recommended
 	 *         to add to the cart. Does not contain any {@link Product} that is
 	 *         already part of the given list of {@link OrderItem}s. Might be empty.
@@ -209,8 +221,7 @@ public abstract class AbstractRecommender implements IRecommender {
 	}
 
 	/**
-	 * @param userBuyingMatrix
-	 *            the userBuyingMatrix to set
+	 * @param userBuyingMatrix the userBuyingMatrix to set
 	 */
 	public void setUserBuyingMatrix(Map<Long, Map<Long, Double>> userBuyingMatrix) {
 		this.userBuyingMatrix = userBuyingMatrix;
@@ -224,8 +235,7 @@ public abstract class AbstractRecommender implements IRecommender {
 	}
 
 	/**
-	 * @param totalProducts
-	 *            the totalProducts to set
+	 * @param totalProducts the totalProducts to set
 	 */
 	public void setTotalProducts(Set<Long> totalProducts) {
 		this.totalProducts = totalProducts;
@@ -239,8 +249,7 @@ public abstract class AbstractRecommender implements IRecommender {
 	}
 
 	/**
-	 * @param userItemSets
-	 *            the userItemSets to set
+	 * @param userItemSets the userItemSets to set
 	 */
 	public void setUserItemSets(Map<Long, Set<OrderItemSet>> userItemSets) {
 		this.userItemSets = userItemSets;
@@ -253,8 +262,7 @@ public abstract class AbstractRecommender implements IRecommender {
 	 * user bought one item at least once, the contained value (rating) is the
 	 * number of times, he bought one given item.
 	 * 
-	 * @param useritemsets
-	 *            A map assigning each user-ID all its OrderItemSets
+	 * @param useritemsets A map assigning each user-ID all its OrderItemSets
 	 * @return A Map representing a matrix of each user-ID assigning each item-ID
 	 *         its number of buys (as double value)
 	 */

@@ -52,18 +52,18 @@ public class OrderBasedRecommenderTest extends AbstractRecommenderFunctionalityT
 	@Override
 	public void testSingleResults() {
 		// test single
-		evaluateForItemNo2(getAlgo().recommendProducts(100L, getRecommendSingle()));
+		evaluateForItemNo2(getAlgo().recommendProducts(100L, getRecommendSingle(), null));
 		// test single with different order
-		evaluateForItemNo2(getAlgo().recommendProducts(102L, getRecommendSingle()));
+		evaluateForItemNo2(getAlgo().recommendProducts(102L, getRecommendSingle(), null));
 		// test single with null user
-		evaluateForItemNo2(getAlgo().recommendProducts(null, getRecommendSingle()));
+		evaluateForItemNo2(getAlgo().recommendProducts(null, getRecommendSingle(), null));
 
 		// try other item with id 1
 		List<OrderItem> recommend = new ArrayList<>();
 		OrderItem o = new OrderItem();
 		o.setProductId(1);
 		recommend.add(o);
-		List<Long> result = getAlgo().recommendProducts(100L, recommend);
+		List<Long> result = getAlgo().recommendProducts(100L, recommend, null);
 		Assert.assertEquals(3L, result.get(0).longValue());
 		try {
 			Assert.assertEquals(2L, result.get(1).longValue());
@@ -81,7 +81,7 @@ public class OrderBasedRecommenderTest extends AbstractRecommenderFunctionalityT
 		recommend.add(o);
 
 		try {
-			getAlgo().recommendProducts(100L, recommend);
+			getAlgo().recommendProducts(100L, recommend, null);
 			Assert.fail("Exception expected");
 		} catch (UseFallBackException e) {
 			// expected
@@ -118,21 +118,21 @@ public class OrderBasedRecommenderTest extends AbstractRecommenderFunctionalityT
 	@Override
 	public void testMultiResults() {
 		// test multi
-		evaluateForItemNo356(getAlgo().recommendProducts(100L, getRecommendMulti()));
+		evaluateForItemNo356(getAlgo().recommendProducts(100L, getRecommendMulti(), null));
 		// test multi with different user
-		evaluateForItemNo356(getAlgo().recommendProducts(102L, getRecommendMulti()));
+		evaluateForItemNo356(getAlgo().recommendProducts(102L, getRecommendMulti(), null));
 
 		// test multi with null user
-		evaluateForItemNo356(getAlgo().recommendProducts(null, getRecommendMulti()));
+		evaluateForItemNo356(getAlgo().recommendProducts(null, getRecommendMulti(), null));
 
 		// test multi with different user
-		evaluateForItemNo356(getAlgo().recommendProducts(104L, getRecommendMulti()));
+		evaluateForItemNo356(getAlgo().recommendProducts(104L, getRecommendMulti(), null));
 
 		// test multi with different user
-		evaluateForItemNo356(getAlgo().recommendProducts(105L, getRecommendMulti()));
+		evaluateForItemNo356(getAlgo().recommendProducts(105L, getRecommendMulti(), null));
 
 		// test multi with different user
-		evaluateForItemNo356(getAlgo().recommendProducts(101L, getRecommendMulti()));
+		evaluateForItemNo356(getAlgo().recommendProducts(101L, getRecommendMulti(), null));
 
 	}
 

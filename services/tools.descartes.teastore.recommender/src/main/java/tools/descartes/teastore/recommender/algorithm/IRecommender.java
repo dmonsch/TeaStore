@@ -63,6 +63,6 @@ public interface IRecommender {
 	 *             {@link IRecommender#train(List)} has not been invoked or
 	 *             terminated yet.
 	 */
-	public List<Long> recommendProducts(Long userid, List<OrderItem> currentItems) throws UnsupportedOperationException;
+	public List<Long> recommendProducts(Long userid, List<OrderItem> currentItems, RecommenderEnum recommender) throws UnsupportedOperationException;
 
 }

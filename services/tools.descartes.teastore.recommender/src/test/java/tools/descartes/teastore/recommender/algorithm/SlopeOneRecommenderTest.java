@@ -57,7 +57,7 @@ public class SlopeOneRecommenderTest extends AbstractRecommenderFunctionalityTes
 		checkDiffMatrix();
 		checkFreqMatrix();
 		// test single
-		List<Long> result = getAlgo().recommendProducts(100L, getRecommendSingle());
+		List<Long> result = getAlgo().recommendProducts(100L, getRecommendSingle(), null);
 		Assert.assertEquals(4L, result.get(0).longValue());
 		try {
 			Assert.assertEquals(3L, result.get(1).longValue());
@@ -72,14 +72,14 @@ public class SlopeOneRecommenderTest extends AbstractRecommenderFunctionalityTes
 
 		// test single with different user
 		try {
-			result = getAlgo().recommendProducts(102L, getRecommendSingle());
+			result = getAlgo().recommendProducts(102L, getRecommendSingle(), null);
 			Assert.fail("Exception expected");
 		} catch (UseFallBackException e) {
 			// expected
 		}
 		// test single with null user
 		try {
-			result = getAlgo().recommendProducts(null, getRecommendSingle());
+			result = getAlgo().recommendProducts(null, getRecommendSingle(), null);
 			Assert.fail("Exception expected");
 		} catch (UseFallBackException e) {
 			// expected
@@ -99,7 +99,7 @@ public class SlopeOneRecommenderTest extends AbstractRecommenderFunctionalityTes
 		checkDiffMatrix();
 		checkFreqMatrix();
 		// test multi
-		List<Long> result = getAlgo().recommendProducts(100L, getRecommendMulti());
+		List<Long> result = getAlgo().recommendProducts(100L, getRecommendMulti(), null);
 		Assert.assertEquals(4L, result.get(0).longValue());
 		try {
 			Assert.assertEquals(2L, result.get(1).longValue());
@@ -113,7 +113,7 @@ public class SlopeOneRecommenderTest extends AbstractRecommenderFunctionalityTes
 
 		// test multi with different user
 		try {
-			result = getAlgo().recommendProducts(102L, getRecommendMulti());
+			result = getAlgo().recommendProducts(102L, getRecommendMulti(), null);
 			Assert.fail("Exception expected");
 		} catch (UseFallBackException e) {
 			// expected
@@ -121,14 +121,14 @@ public class SlopeOneRecommenderTest extends AbstractRecommenderFunctionalityTes
 		
 		// test multi with null user
 		try {
-			result = getAlgo().recommendProducts(null, getRecommendMulti());
+			result = getAlgo().recommendProducts(null, getRecommendMulti(), null);
 			Assert.fail("Exception expected");
 		} catch (UseFallBackException e) {
 			// expected
 		}
 
 		// test multi with different user
-		result = getAlgo().recommendProducts(104L, getRecommendMulti());
+		result = getAlgo().recommendProducts(104L, getRecommendMulti(), null);
 		Assert.assertEquals(4L, result.get(0).longValue());
 		try {
 			Assert.assertEquals(2L, result.get(1).longValue());
@@ -141,7 +141,7 @@ public class SlopeOneRecommenderTest extends AbstractRecommenderFunctionalityTes
 		Assert.assertEquals(3, result.size());
 
 		// test multi with different user
-		result = getAlgo().recommendProducts(105L, getRecommendMulti());
+		result = getAlgo().recommendProducts(105L, getRecommendMulti(), null);
 		try {
 			Assert.assertEquals(4L, result.get(0).longValue());
 			Assert.assertEquals(2L, result.get(1).longValue());
@@ -154,7 +154,7 @@ public class SlopeOneRecommenderTest extends AbstractRecommenderFunctionalityTes
 		Assert.assertEquals(3, result.size());
 
 		// test multi with different user
-		result = getAlgo().recommendProducts(101L, getRecommendMulti());
+		result = getAlgo().recommendProducts(101L, getRecommendMulti(), null);
 		Assert.assertEquals(2L, result.get(0).longValue());
 		Assert.assertEquals(1L, result.get(1).longValue());
 		Assert.assertEquals(4L, result.get(2).longValue());

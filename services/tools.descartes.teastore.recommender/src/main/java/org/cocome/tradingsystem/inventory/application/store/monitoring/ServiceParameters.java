@@ -1,0 +1,99 @@
+package org.cocome.tradingsystem.inventory.application.store.monitoring;
+
+import kieker.common.record.IMonitoringRecord;
+import tools.descartes.teastore.recommender.algorithm.RecommenderEnum;
+
+/**
+ * Service parameter serialization.
+ *
+ * @author JP
+ *
+ */
+public class ServiceParameters {
+
+	/**
+	 * Empty service parameters.
+	 */
+	public static ServiceParameters EMPTY = new ServiceParameters();
+
+	private final StringBuilder stringBuilder;
+
+	/**
+	 * Initializes a new instance of {@link ServiceParameters} class.
+	 */
+	public ServiceParameters() {
+		this.stringBuilder = new StringBuilder();
+	}
+
+	public void addEnum(String string, Enum<?> recommender) {
+		this.stringBuilder.append("\"").append(string).append(".VALUE\":\"").append(recommender.toString()).append("\",");
+	}
+
+	/**
+	 * Appends an float parameter.
+	 *
+	 * @param name  Parameter name.
+	 * @param value Parameter value.
+	 */
+	public void addFloat(final String name, final double value) {
+		this.stringBuilder.append("\"").append(name).append(".VALUE\":").append(value).append(",");
+	}
+
+	public void addNumberOfElements(final String name, final int value) {
+		this.stringBuilder.append("\"").append(name).append(".NUMBER_OF_ELEMENTS\":").append(value).append(",");
+	}
+
+	/**
+	 * Appends an integer parameter.
+	 *
+	 * @param name  Parameter name.
+	 * @param value Parameter value.
+	 */
+	public void addInt(final String name, final int value) {
+		this.stringBuilder.append("\"").append(name).append(".VALUE\":").append(value).append(",");
+	}
+
+	/**
+	 * Appends an integer parameter which describes the size of a list.
+	 * 
+	 * @param name  Parameter name.
+	 * @param value Parameter value.
+	 */
+	public void addIntElements(final String name, final int value) {
+		this.stringBuilder.append("\"").append(name).append(".NUMBER_OF_ELEMENTS\":").append(value).append(",");
+	}
+
+	/**
+	 * Appends an boolean parameter.
+	 *
+	 * @param name  Parameter name.
+	 * @param value Parameter value.
+	 */
+	public void addBoolean(final String name, final boolean value) {
+		this.stringBuilder.append("\"").append(name).append(".VALUE\":").append(value).append(",");
+	}
+
+	/**
+	 * Appends an string parameter.
+	 *
+	 * @param name  Parameter name.
+	 * @param value Parameter value.
+	 */
+	public void addString(final String name, final String value) {
+		if (value == null) {
+			this.stringBuilder.append("\"").append(name).append(".VALUE\":null,");
+			this.stringBuilder.append("\"").append(name).append(".BYTESIZE\":0,");
+		} else {
+			this.stringBuilder.append("\"").append(name).append(".VALUE\":\"").append(value).append("\",");
+			this.stringBuilder.append("\"").append(name).append(".BYTESIZE\":").append(value.length()).append(",");
+		}
+	}
+
+	/**
+	 * Gets the serialized parameters.
+	 */
+	@Override
+	public String toString() {
+		return "{" + this.stringBuilder.toString() + "}";
+	}
+}

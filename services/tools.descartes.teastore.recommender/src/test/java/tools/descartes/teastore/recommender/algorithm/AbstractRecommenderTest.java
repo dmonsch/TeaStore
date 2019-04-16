@@ -280,8 +280,10 @@ public abstract class AbstractRecommenderTest {
 	 */
 	@Test
 	public void testInterface() {
+		RecommenderEnum rand = RecommenderEnum.random();
+		
 		try {
-			getAlgo().recommendProducts(allUsers.get(2).getId(), recommendMulti);
+			getAlgo().recommendProducts(allUsers.get(2).getId(), recommendMulti, rand);
 			Assert.fail("Recommender is supposed to throw an exception before being trained.");
 		} catch (UnsupportedOperationException e) {
 			// expected
@@ -294,10 +296,10 @@ public abstract class AbstractRecommenderTest {
 		recommended.add(-1L);
 
 		Assert.assertEquals(recommended.getClass(),
-				getAlgo().recommendProducts(allUsers.get(2).getId(), recommendMulti).getClass());
+				getAlgo().recommendProducts(allUsers.get(2).getId(), recommendMulti, rand).getClass());
 
 		Assert.assertEquals(new ArrayList<Long>(),
-				getAlgo().recommendProducts(allUsers.get(1).getId(), new ArrayList<>()));
+				getAlgo().recommendProducts(allUsers.get(1).getId(), new ArrayList<>(), rand));
 	}
 
 	/**

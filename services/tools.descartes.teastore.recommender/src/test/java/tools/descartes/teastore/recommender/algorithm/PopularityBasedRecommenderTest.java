@@ -48,7 +48,7 @@ public class PopularityBasedRecommenderTest extends AbstractRecommenderFunctiona
 	@Override
 	public void testSingleResults() {
 		// test single
-		List<Long> result = getAlgo().recommendProducts(getAllUsers().get(0).getId(), getRecommendSingle());
+		List<Long> result = getAlgo().recommendProducts(getAllUsers().get(0).getId(), getRecommendSingle(), null);
 		Assert.assertEquals(3L, result.get(0).longValue());
 		Assert.assertEquals(4L, result.get(1).longValue());
 		Assert.assertEquals(1L, result.get(2).longValue());
@@ -56,7 +56,7 @@ public class PopularityBasedRecommenderTest extends AbstractRecommenderFunctiona
 		Assert.assertEquals(4, result.size());
 
 		// test single with different user
-		result = getAlgo().recommendProducts(getAllUsers().get(2).getId(), getRecommendSingle());
+		result = getAlgo().recommendProducts(getAllUsers().get(2).getId(), getRecommendSingle(), null);
 		Assert.assertEquals(3L, result.get(0).longValue());
 		Assert.assertEquals(4L, result.get(1).longValue());
 		Assert.assertEquals(1L, result.get(2).longValue());
@@ -74,21 +74,21 @@ public class PopularityBasedRecommenderTest extends AbstractRecommenderFunctiona
 	@Override
 	public void testMultiResults() {
 		// test multi
-		List<Long> result = getAlgo().recommendProducts(getAllUsers().get(0).getId(), getRecommendMulti());
+		List<Long> result = getAlgo().recommendProducts(getAllUsers().get(0).getId(), getRecommendMulti(), null);
 		Assert.assertEquals(2L, result.get(0).longValue());
 		Assert.assertEquals(4L, result.get(1).longValue());
 		Assert.assertEquals(1L, result.get(2).longValue());
 		Assert.assertEquals(3, result.size());
 
 		// test multi with different user
-		result = getAlgo().recommendProducts(getAllUsers().get(2).getId(), getRecommendMulti());
+		result = getAlgo().recommendProducts(getAllUsers().get(2).getId(), getRecommendMulti(), null);
 		Assert.assertEquals(2L, result.get(0).longValue());
 		Assert.assertEquals(4L, result.get(1).longValue());
 		Assert.assertEquals(1L, result.get(2).longValue());
 		Assert.assertEquals(3, result.size());
 
 		// test multi with different user
-		result = getAlgo().recommendProducts(getAllUsers().get(4).getId(), getRecommendMulti());
+		result = getAlgo().recommendProducts(getAllUsers().get(4).getId(), getRecommendMulti(), null);
 		Assert.assertEquals(2L, result.get(0).longValue());
 		Assert.assertEquals(4L, result.get(1).longValue());
 		Assert.assertEquals(1L, result.get(2).longValue());
