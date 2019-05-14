@@ -21,9 +21,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.UUID;
 import java.util.Map.Entry;
 
 import org.cocome.tradingsystem.inventory.application.store.monitoring.MonitoringMetadata;
+import org.cocome.tradingsystem.inventory.application.store.monitoring.ServiceParameters;
 import org.cocome.tradingsystem.inventory.application.store.monitoring.ThreadMonitoringController;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,6 +34,10 @@ import tools.descartes.teastore.entities.Order;
 import tools.descartes.teastore.entities.OrderItem;
 import tools.descartes.teastore.entities.Product;
 import tools.descartes.teastore.entities.User;
+import tools.descartes.teastore.recommender.algorithm.impl.cf.PreprocessedSlopeOneRecommender;
+import tools.descartes.teastore.recommender.algorithm.impl.cf.SlopeOneRecommender;
+import tools.descartes.teastore.recommender.algorithm.impl.orderbased.OrderBasedRecommender;
+import tools.descartes.teastore.recommender.algorithm.impl.pop.PopularityBasedRecommender;
 
 /**
  * Abstract class for basic recommendation functionality.
@@ -40,6 +46,16 @@ import tools.descartes.teastore.entities.User;
  *
  */
 public abstract class AbstractRecommender implements IRecommender {
+
+	private static Map<Class<? extends IRecommender>, RecommenderEnum> recommenders = new HashMap<>();
+
+	static {
+		recommenders = new HashMap<Class<? extends IRecommender>, RecommenderEnum>();
+		recommenders.put(PopularityBasedRecommender.class, RecommenderEnum.POPULARITY);
+		recommenders.put(SlopeOneRecommender.class, RecommenderEnum.SLOPE_ONE);
+		recommenders.put(PreprocessedSlopeOneRecommender.class, RecommenderEnum.PREPROC_SLOPE_ONE);
+		recommenders.put(OrderBasedRecommender.class, RecommenderEnum.ORDER_BASED);
+	}
 
 	private boolean trainingFinished = false;
 
@@ -71,41 +87,88 @@ public abstract class AbstractRecommender implements IRecommender {
 
 	@Override
 	public void train(List<OrderItem> orderItems, List<Order> orders) {
-		long tic = System.currentTimeMillis();
-		totalProducts = new HashSet<>();
-		// first create order mapping unorderized
-		Map<Long, OrderItemSet> unOrderizeditemSets = new HashMap<>();
-		for (OrderItem orderItem : orderItems) {
-			if (!unOrderizeditemSets.containsKey(orderItem.getOrderId())) {
-				unOrderizeditemSets.put(orderItem.getOrderId(), new OrderItemSet());
-				unOrderizeditemSets.get(orderItem.getOrderId()).setOrderId(orderItem.getOrderId());
+		// monitoring
+		ServiceParameters serviceParameters = new ServiceParameters();
+		serviceParameters.addNumberOfElements("items", orderItems.size());
+		serviceParameters.addNumberOfElements("orders", orders.size());
+		serviceParameters.addEnum("recommender", recommenders.get(this.getClass()));
+		// end monitoring
+
+		// set random session id -> this is a workaround because we do not have a real
+		// session
+		ThreadMonitoringController.setSessionId(UUID.randomUUID().toString());
+
+		ThreadMonitoringController.getInstance().enterService(MonitoringMetadata.SERVICE_TRAIN,
+				MonitoringMetadata.ASSEMBLY_RECOMMENDER, serviceParameters);
+
+		try {
+			// monitoring
+			long tic = System.currentTimeMillis();
+			totalProducts = new HashSet<>();
+			// first create order mapping unorderized
+			Map<Long, OrderItemSet> unOrderizeditemSets = new HashMap<>();
+
+			for (OrderItem orderItem : orderItems) {
+				long startOrder = ThreadMonitoringController.getInstance().getTime();
+				if (!unOrderizeditemSets.containsKey(orderItem.getOrderId())) {
+					unOrderizeditemSets.put(orderItem.getOrderId(), new OrderItemSet());
+					unOrderizeditemSets.get(orderItem.getOrderId()).setOrderId(orderItem.getOrderId());
+				}
+				unOrderizeditemSets.get(orderItem.getOrderId()).getOrderset().put(orderItem.getProductId(),
+						orderItem.getQuantity());
+				// see, if we already have our item
+				if (!totalProducts.contains(orderItem.getProductId())) {
+					// if not known yet -> add
+					totalProducts.add(orderItem.getProductId());
+				}
+				// monitoring
+				ThreadMonitoringController.getInstance().logResponseTime(MonitoringMetadata.INTERNAL_ITEM_PROCESS,
+						MonitoringMetadata.RESOURCE_CPU, startOrder);
 			}
-			unOrderizeditemSets.get(orderItem.getOrderId()).getOrderset().put(orderItem.getProductId(),
-					orderItem.getQuantity());
-			// see, if we already have our item
-			if (!totalProducts.contains(orderItem.getProductId())) {
-				// if not known yet -> add
-				totalProducts.add(orderItem.getProductId());
+			// log loop outer
+			ThreadMonitoringController.getInstance().logLoopIterationCount(MonitoringMetadata.LOOP_ITEMS,
+					orderItems.size());
+
+			// now map each id with the corresponding order
+			long startFind = ThreadMonitoringController.getInstance().getTime();
+			Map<Order, OrderItemSet> itemSets = new HashMap<>();
+			for (Long orderid : unOrderizeditemSets.keySet()) {
+				Order realOrder = findOrder(orders, orderid);
+				itemSets.put(realOrder, unOrderizeditemSets.get(orderid));
 			}
-		}
-		// now map each id with the corresponding order
-		Map<Order, OrderItemSet> itemSets = new HashMap<>();
-		for (Long orderid : unOrderizeditemSets.keySet()) {
-			Order realOrder = findOrder(orders, orderid);
-			itemSets.put(realOrder, unOrderizeditemSets.get(orderid));
-		}
-		userItemSets = new HashMap<>();
-		for (Order order : itemSets.keySet()) {
-			if (!userItemSets.containsKey(order.getUserId())) {
-				userItemSets.put(order.getUserId(), new HashSet<OrderItemSet>());
+
+			userItemSets = new HashMap<>();
+			for (Order order : itemSets.keySet()) {
+				if (!userItemSets.containsKey(order.getUserId())) {
+					userItemSets.put(order.getUserId(), new HashSet<OrderItemSet>());
+				}
+				itemSets.get(order).setUserId(order.getUserId());
+				userItemSets.get(order.getUserId()).add(itemSets.get(order));
 			}
-			itemSets.get(order).setUserId(order.getUserId());
-			userItemSets.get(order.getUserId()).add(itemSets.get(order));
+			// monitoring
+			ThreadMonitoringController.getInstance().logResponseTime(MonitoringMetadata.INTERNAL_CREATE_USET,
+					MonitoringMetadata.RESOURCE_CPU, startFind);
+
+			ServiceParameters paraInner = new ServiceParameters();
+			paraInner.addNumberOfElements("userItems", userItemSets.size());
+
+			ThreadMonitoringController.getInstance().enterService(MonitoringMetadata.SERVICE_BUY_MATRIX,
+					MonitoringMetadata.ASSEMBLY_UTIL, paraInner);
+			try {
+				userBuyingMatrix = createUserBuyingMatrix(userItemSets);
+			} finally {
+				ThreadMonitoringController.getInstance().exitService();
+			}
+
+			long preprocStart = ThreadMonitoringController.getInstance().getTime();
+			executePreprocessing();
+			ThreadMonitoringController.getInstance().logResponseTime(MonitoringMetadata.INTERNAL_PREPROCESS,
+					MonitoringMetadata.RESOURCE_CPU, preprocStart);
+			LOG.info("Training recommender finished. Training took: " + (System.currentTimeMillis() - tic) + "ms.");
+			trainingFinished = true;
+		} finally {
+			ThreadMonitoringController.getInstance().exitService();
 		}
-		userBuyingMatrix = createUserBuyingMatrix(userItemSets);
-		executePreprocessing();
-		LOG.info("Training recommender finished. Training took: " + (System.currentTimeMillis() - tic) + "ms.");
-		trainingFinished = true;
 	}
 
 	/**
@@ -128,21 +191,10 @@ public abstract class AbstractRecommender implements IRecommender {
 		}
 
 		List<Long> items = new ArrayList<>(currentItems.size());
-		int iterations = 0;
 		for (OrderItem item : currentItems) {
-			long beforeConv = ThreadMonitoringController.getInstance().getTime();
 			items.add(item.getProductId());
-			ThreadMonitoringController.getInstance().logResponseTime(MonitoringMetadata.INTERNAL_CONV_ITEM,
-					MonitoringMetadata.RESOURCE_CPU, beforeConv);
-
-			iterations++;
 		}
-		ThreadMonitoringController.getInstance().logLoopIterationCount(MonitoringMetadata.LOOP_CONVERT, iterations);
-
-		long beforeExec = ThreadMonitoringController.getInstance().getTime();
 		List<Long> result = execute(userid, items);
-		ThreadMonitoringController.getInstance().logResponseTime(MonitoringMetadata.INTERNAL_EXEC_RECOMMEND,
-				MonitoringMetadata.RESOURCE_CPU, beforeExec);
 
 		return result;
 	}
@@ -267,6 +319,9 @@ public abstract class AbstractRecommender implements IRecommender {
 	 *         its number of buys (as double value)
 	 */
 	private static Map<Long, Map<Long, Double>> createUserBuyingMatrix(Map<Long, Set<OrderItemSet>> useritemsets) {
+
+		long startMatrix = ThreadMonitoringController.getInstance().getTime();
+
 		Map<Long, Map<Long, Double>> matrix = new HashMap<>();
 		// for each user
 		for (Entry<Long, Set<OrderItemSet>> entry : useritemsets.entrySet()) {
@@ -288,6 +343,9 @@ public abstract class AbstractRecommender implements IRecommender {
 			// add this user-ID to the matrix
 			matrix.put(entry.getKey(), line);
 		}
+		ThreadMonitoringController.getInstance().logResponseTime(MonitoringMetadata.INTERNAL_MATRIX,
+				MonitoringMetadata.RESOURCE_CPU, startMatrix);
+
 		return matrix;
 	}
 

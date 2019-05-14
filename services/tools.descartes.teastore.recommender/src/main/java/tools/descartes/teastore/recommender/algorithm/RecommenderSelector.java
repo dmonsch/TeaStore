@@ -35,6 +35,7 @@ import tools.descartes.teastore.recommender.algorithm.impl.cf.PreprocessedSlopeO
 import tools.descartes.teastore.recommender.algorithm.impl.cf.SlopeOneRecommender;
 import tools.descartes.teastore.recommender.algorithm.impl.orderbased.OrderBasedRecommender;
 import tools.descartes.teastore.recommender.algorithm.impl.pop.PopularityBasedRecommender;
+import tools.descartes.teastore.recommender.servlet.TrainingSynchronizer;
 import tools.descartes.teastore.entities.Order;
 import tools.descartes.teastore.entities.OrderItem;
 
@@ -45,6 +46,8 @@ import tools.descartes.teastore.entities.OrderItem;
  *
  */
 public final class RecommenderSelector implements IRecommender {
+	
+	private int EVOLUTION_SCENARIO = 1;
 
 	/**
 	 * This map lists all currently available recommending approaches and assigns
@@ -84,30 +87,19 @@ public final class RecommenderSelector implements IRecommender {
 	@Override
 	public List<Long> recommendProducts(Long userid, List<OrderItem> currentItems, RecommenderEnum recommender)
 			throws UnsupportedOperationException {
-
-		ServiceParameters serviceParameters = new ServiceParameters();
-		serviceParameters.addNumberOfElements("items", currentItems.size());
-		serviceParameters.addString("userId", String.valueOf(userid));
-		serviceParameters.addEnum("recommender", recommender);
 		
-		// set random session id -> this is a workaround because we do not have a real session
-		ThreadMonitoringController.setSessionId(UUID.randomUUID().toString());
-
-		ThreadMonitoringController.getInstance().enterService(MonitoringMetadata.SERVICE_RECOMMEND,
-				MonitoringMetadata.ASSEMBLY_RECOMMENDER, serviceParameters);
-
+		if (currentItems.size() == 1) {
+			TrainingSynchronizer.getInstance().retrieveDataAndRetrain();
+		}
+		
+		long start = System.currentTimeMillis();
 		try {
-			long startGet = ThreadMonitoringController.getInstance().getTime();
 			IRecommender resolved = this.recommenderInstances.get(recommender);
-			ThreadMonitoringController.getInstance().logResponseTime(MonitoringMetadata.INTERNAL_GET_RECOMMENDER,
-					MonitoringMetadata.RESOURCE_CPU, startGet);
 			return resolved.recommendProducts(userid, currentItems, recommender);
 		} catch (UseFallBackException e) {
 			return Lists.newArrayList();
 		} finally {
-			// monitoring end
-			ThreadMonitoringController.getInstance().exitService();
-			ThreadMonitoringController.setSessionId("<not set>");
+			// java.lang.System.out.println("Recommending needed " + (System.currentTimeMillis() - start) + "ms.");
 		}
 	}
 
@@ -133,10 +125,15 @@ public final class RecommenderSelector implements IRecommender {
 	 * java.util.List)
 	 */
 	@Override
-	public void train(List<OrderItem> orderItems, List<Order> orders) {
+	public synchronized void train(List<OrderItem> orderItems, List<Order> orders) {
 		// train all
-		for (Entry<RecommenderEnum, IRecommender> entry : recommenderInstances.entrySet()) {
-			entry.getValue().train(orderItems, orders);
+		if (EVOLUTION_SCENARIO == 1) {
+			// only train one
+			recommenderInstances.get(RecommenderEnum.POPULARITY).train(orderItems, orders);
+		} else if (EVOLUTION_SCENARIO == 2) {
+			for (Entry<RecommenderEnum, IRecommender> entry : recommenderInstances.entrySet()) {
+				entry.getValue().train(orderItems, orders);
+			}
 		}
 	}
 

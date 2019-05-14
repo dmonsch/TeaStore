@@ -95,7 +95,7 @@ public class ThreadMonitoringController {
 		if (!cpuSamplerActive) {
 			CPUSamplingJob job = new CPUSamplingJob(containerId, sessionId);
 
-			samplerJob = monitoringController.schedulePeriodicSampler(job, 0, 100, TimeUnit.MILLISECONDS);
+			samplerJob = monitoringController.schedulePeriodicSampler(job, 0, 75, TimeUnit.MILLISECONDS);
 			cpuSamplerActive = true;
 		}
 	}
