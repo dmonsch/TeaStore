@@ -46,8 +46,8 @@ import tools.descartes.teastore.entities.OrderItem;
  *
  */
 public final class RecommenderSelector implements IRecommender {
-	
-	private int EVOLUTION_SCENARIO = 1;
+
+	private int EVOLUTION_SCENARIO = 2;
 
 	/**
 	 * This map lists all currently available recommending approaches and assigns
@@ -82,16 +82,19 @@ public final class RecommenderSelector implements IRecommender {
 				LOG.warn("Failed to create a recommender instance.");
 			}
 		}
+
+		ThreadMonitoringController.getInstance().registerCpuSampler(MonitoringMetadata.CONTAIMER_SIMPLE_SERVER,
+				"<none>", EVOLUTION_SCENARIO == 2 && AbstractRecommender.evolutionRecognized);
 	}
 
 	@Override
 	public List<Long> recommendProducts(Long userid, List<OrderItem> currentItems, RecommenderEnum recommender)
 			throws UnsupportedOperationException {
-		
+
 		if (currentItems.size() == 1) {
 			TrainingSynchronizer.getInstance().retrieveDataAndRetrain();
 		}
-		
+
 		long start = System.currentTimeMillis();
 		try {
 			IRecommender resolved = this.recommenderInstances.get(recommender);
@@ -99,7 +102,8 @@ public final class RecommenderSelector implements IRecommender {
 		} catch (UseFallBackException e) {
 			return Lists.newArrayList();
 		} finally {
-			// java.lang.System.out.println("Recommending needed " + (System.currentTimeMillis() - start) + "ms.");
+			// java.lang.System.out.println("Recommending needed " +
+			// (System.currentTimeMillis() - start) + "ms.");
 		}
 	}
 

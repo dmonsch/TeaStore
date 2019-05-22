@@ -13,6 +13,8 @@
  */
 package tools.descartes.teastore.recommender.algorithm;
 
+import java.io.FileWriter;
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -30,6 +32,8 @@ import org.cocome.tradingsystem.inventory.application.store.monitoring.ThreadMon
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import jersey.repackaged.com.google.common.collect.Lists;
+import jersey.repackaged.com.google.common.collect.Maps;
 import tools.descartes.teastore.entities.Order;
 import tools.descartes.teastore.entities.OrderItem;
 import tools.descartes.teastore.entities.Product;
@@ -58,6 +62,7 @@ public abstract class AbstractRecommender implements IRecommender {
 	}
 
 	private boolean trainingFinished = false;
+	public static boolean evolutionRecognized = false;
 
 	/**
 	 * Defines the maximum number of recommendations different implementations
@@ -108,6 +113,7 @@ public abstract class AbstractRecommender implements IRecommender {
 			// first create order mapping unorderized
 			Map<Long, OrderItemSet> unOrderizeditemSets = new HashMap<>();
 
+			int k = 0;
 			for (OrderItem orderItem : orderItems) {
 				long startOrder = ThreadMonitoringController.getInstance().getTime();
 				if (!unOrderizeditemSets.containsKey(orderItem.getOrderId())) {
@@ -122,8 +128,10 @@ public abstract class AbstractRecommender implements IRecommender {
 					totalProducts.add(orderItem.getProductId());
 				}
 				// monitoring
-				ThreadMonitoringController.getInstance().logResponseTime(MonitoringMetadata.INTERNAL_ITEM_PROCESS,
-						MonitoringMetadata.RESOURCE_CPU, startOrder);
+				if (k++ % 10 == 0) {
+					ThreadMonitoringController.getInstance().logResponseTime(MonitoringMetadata.INTERNAL_ITEM_PROCESS,
+							MonitoringMetadata.RESOURCE_CPU, startOrder);
+				}
 			}
 			// log loop outer
 			ThreadMonitoringController.getInstance().logLoopIterationCount(MonitoringMetadata.LOOP_ITEMS,
@@ -163,11 +171,18 @@ public abstract class AbstractRecommender implements IRecommender {
 			long preprocStart = ThreadMonitoringController.getInstance().getTime();
 			executePreprocessing();
 			ThreadMonitoringController.getInstance().logResponseTime(MonitoringMetadata.INTERNAL_PREPROCESS,
-					MonitoringMetadata.RESOURCE_CPU, preprocStart);
+					MonitoringMetadata.RESOURCE_CPU, preprocStart, evolutionRecognized);
 			LOG.info("Training recommender finished. Training took: " + (System.currentTimeMillis() - tic) + "ms.");
 			trainingFinished = true;
 		} finally {
-			ThreadMonitoringController.getInstance().exitService();
+			long overhead = ThreadMonitoringController.getInstance().exitService();
+
+			// append = true
+			try (PrintWriter output = new PrintWriter(
+					new FileWriter("/Users/David/monitoring-teastore/overhead.txt", true))) {
+				output.printf("%s\r\n", ";" + String.valueOf(overhead));
+			} catch (Exception e) {
+			}
 		}
 	}
 
@@ -183,7 +198,7 @@ public abstract class AbstractRecommender implements IRecommender {
 	public List<Long> recommendProducts(Long userid, List<OrderItem> currentItems, RecommenderEnum recommender)
 			throws UnsupportedOperationException {
 		if (!trainingFinished) {
-			throw new UnsupportedOperationException("This instance is not fully trained yet.");
+			return Lists.newLinkedList();
 		}
 		if (currentItems.isEmpty()) {
 			// if input is empty return empty list
@@ -231,6 +246,9 @@ public abstract class AbstractRecommender implements IRecommender {
 	}
 
 	private TreeMap<Double, List<Long>> createRanking(Map<Long, Double> map) {
+		if (map == null) {
+			return Maps.newTreeMap();
+		}
 		// transforming the map into a treemap (for efficient access)
 		TreeMap<Double, List<Long>> ranking = new TreeMap<Double, List<Long>>();
 		for (Entry<Long, Double> entry : map.entrySet()) {

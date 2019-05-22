@@ -30,6 +30,8 @@ import tools.vitruv.applications.pcmjava.modelrefinement.parameters.monitoring.r
  *
  */
 public class ThreadMonitoringController {
+	
+	private static boolean FINE_GRANULAR = false;
 
 	private static final int INITIAL_SERVICE_DEPTH_COUNT = 10;
 
@@ -74,7 +76,8 @@ public class ThreadMonitoringController {
 
 	private ServiceMonitoringController currentServiceController;
 
-	private long overhead;
+	private long childOverhead;
+	private long currentOverhead;
 
 	private boolean cpuSamplerActive;
 	private ScheduledSamplerJob samplerJob;
@@ -86,16 +89,23 @@ public class ThreadMonitoringController {
 			this.serviceControllers.add(new ServiceMonitoringController());
 		}
 		this.currentServiceIndex = -1;
+		
+		this.currentOverhead = 0;
+		this.childOverhead = 0;
+		
 		this.currentServiceController = null;
-		this.overhead = 0;
 		this.cpuSamplerActive = false;
 	}
-
+	
 	public void registerCpuSampler(String containerId, String sessionId) {
-		if (!cpuSamplerActive) {
+		this.registerCpuSampler(containerId, sessionId, false);
+	}
+
+	public void registerCpuSampler(String containerId, String sessionId, boolean force) {
+		if (!cpuSamplerActive && (FINE_GRANULAR || force)) {
 			CPUSamplingJob job = new CPUSamplingJob(containerId, sessionId);
 
-			samplerJob = monitoringController.schedulePeriodicSampler(job, 0, 75, TimeUnit.MILLISECONDS);
+			samplerJob = monitoringController.schedulePeriodicSampler(job, 0, 100, TimeUnit.MILLISECONDS);
 			cpuSamplerActive = true;
 		}
 	}
@@ -116,10 +126,10 @@ public class ThreadMonitoringController {
 	 * @param serviceId
 	 *            The SEFF Id for the service.
 	 */
-	public void enterService(final String serviceId, final String assemblyId) {
-		long before = System.currentTimeMillis();
+	public synchronized void enterService(final String serviceId, final String assemblyId) {
+		long before = System.nanoTime();
 		this.enterService(serviceId, assemblyId, ServiceParameters.EMPTY);
-		overhead += System.currentTimeMillis() - before;
+		currentOverhead += System.nanoTime() - before;
 	}
 
 	/**
@@ -133,8 +143,9 @@ public class ThreadMonitoringController {
 	 * @param serviceParameters
 	 *            The service parameter values.
 	 */
-	public void enterService(final String serviceId, final String assemblyId, final ServiceParameters serviceParameters) {
-		long before = System.currentTimeMillis();
+	public synchronized void enterService(final String serviceId, final String assemblyId, final ServiceParameters serviceParameters) {
+		long before = System.nanoTime();
+		
 		String currentServiceExecutionId = null;
 		String currentCallerId = null;
 		if (this.currentServiceController != null) {
@@ -155,15 +166,16 @@ public class ThreadMonitoringController {
 				currentServiceExecutionId);
 
 		this.currentServiceController = newService;
-		overhead += System.currentTimeMillis() - before;
+		currentOverhead += System.nanoTime() - before;
 	}
 
 	/**
 	 * Leaves the current service and writes the monitoring record.
 	 * {@link ThreadMonitoringController#enterService(String)} must be called first.
 	 */
-	public void exitService() {
-		long before = System.currentTimeMillis();
+	public synchronized long exitService() {
+		
+		long before = System.nanoTime();
 		this.currentServiceController.exitService();
 		this.currentServiceIndex -= 1;
 		if (this.currentServiceIndex >= 0) {
@@ -171,7 +183,17 @@ public class ThreadMonitoringController {
 		} else {
 			this.currentServiceController = null;
 		}
-		overhead += System.currentTimeMillis() - before;
+		currentOverhead += System.nanoTime() - before;
+		
+		long resultingOverhead = currentOverhead + childOverhead;
+		childOverhead = resultingOverhead;
+		currentOverhead = 0;
+		
+		if (this.currentServiceIndex < 0) {
+			childOverhead = 0;
+		}
+		
+		return resultingOverhead;
 	}
 
 	/**
@@ -192,10 +214,16 @@ public class ThreadMonitoringController {
 	 * @param executedBranchId
 	 *            The abstract action id of the executed branch transition.
 	 */
-	public void logBranchExecution(final String branchId, final String executedBranchId) {
-		long before = System.currentTimeMillis();
+	public synchronized void logBranchExecution(final String branchId, final String executedBranchId, boolean force) {
+		if (!FINE_GRANULAR && !force) return;
+		
+		long before = System.nanoTime();
 		this.currentServiceController.logBranchExecution(branchId, executedBranchId);
-		overhead += System.currentTimeMillis() - before;
+		currentOverhead += System.nanoTime() - before;
+	}
+	
+	public synchronized void logBranchExecution(final String branchId, final String executedBranchId) {
+		this.logBranchExecution(branchId, executedBranchId, false);
 	}
 
 	/**
@@ -206,10 +234,16 @@ public class ThreadMonitoringController {
 	 * @param loopIterationCount
 	 *            The executed iterations of the loop.
 	 */
-	public void logLoopIterationCount(final String loopId, final long loopIterationCount) {
-		long before = System.currentTimeMillis();
+	public synchronized void logLoopIterationCount(final String loopId, final long loopIterationCount, boolean force) {
+		if (!FINE_GRANULAR && !force) return;
+		
+		long before = System.nanoTime();
 		this.currentServiceController.logLoopIterationCount(loopId, loopIterationCount);
-		overhead += System.currentTimeMillis() - before;
+		currentOverhead += System.nanoTime() - before;
+	}
+	
+	public synchronized void logLoopIterationCount(final String loopId, final long loopIterationCount) {
+		this.logLoopIterationCount(loopId, loopIterationCount, false);
 	}
 
 	/**
@@ -223,10 +257,16 @@ public class ThreadMonitoringController {
 	 * @param startTime
 	 *            The start time of the response time.
 	 */
-	public void logResponseTime(final String internalActionId, final String resourceId, final long startTime) {
-		long before = System.currentTimeMillis();
+	public synchronized void logResponseTime(final String internalActionId, final String resourceId, final long startTime, boolean force) {
+		if (!FINE_GRANULAR && !force) return;
+		
+		long before = System.nanoTime();
 		this.currentServiceController.logResponseTime(internalActionId, resourceId, startTime);
-		overhead += System.currentTimeMillis() - before;
+		currentOverhead += System.nanoTime() - before;
+	}
+	
+	public synchronized void logResponseTime(final String internalActionId, final String resourceId, final long startTime) {
+		this.logResponseTime(internalActionId, resourceId, startTime, false);
 	}
 
 	/**
@@ -235,14 +275,10 @@ public class ThreadMonitoringController {
 	 * @param currentCallerId
 	 *            The abstract action id of the next external call.
 	 */
-	public void setCurrentCallerId(final String currentCallerId) {
-		long before = System.currentTimeMillis();
+	public synchronized void setCurrentCallerId(final String currentCallerId) {
+		long before = System.nanoTime();
 		this.currentServiceController.setCurrentCallerId(currentCallerId);
-		overhead += System.currentTimeMillis() - before;
-	}
-
-	public long getOverhead() {
-		return overhead;
+		currentOverhead += System.nanoTime() - before;
 	}
 
 	/**
@@ -346,6 +382,7 @@ public class ThreadMonitoringController {
 
 	public void resetOverhead() {
 		System.out.println("Reset");
-		this.overhead = 0;
+		this.currentOverhead = 0;
+		this.childOverhead = 0;
 	}
 }
