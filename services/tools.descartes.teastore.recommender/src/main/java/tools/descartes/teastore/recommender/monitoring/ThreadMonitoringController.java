@@ -1,4 +1,4 @@
-package org.cocome.tradingsystem.inventory.application.store.monitoring;
+package tools.descartes.teastore.recommender.monitoring;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -10,11 +10,7 @@ import kieker.common.configuration.Configuration;
 import kieker.monitoring.core.configuration.ConfigurationFactory;
 import kieker.monitoring.core.controller.IMonitoringController;
 import kieker.monitoring.core.controller.MonitoringController;
-import kieker.monitoring.core.controller.WriterController;
 import kieker.monitoring.core.sampler.ScheduledSamplerJob;
-import kieker.monitoring.sampler.sigar.ISigarSamplerFactory;
-import kieker.monitoring.sampler.sigar.SigarSamplerFactory;
-import kieker.monitoring.sampler.sigar.samplers.CPUsDetailedPercSampler;
 import kieker.monitoring.timer.ITimeSource;
 import kieker.monitoring.writer.filesystem.AsciiFileWriter;
 import tools.vitruv.applications.pcmjava.modelrefinement.parameters.monitoring.records.BranchRecord;
@@ -30,14 +26,12 @@ import tools.vitruv.applications.pcmjava.modelrefinement.parameters.monitoring.r
  *
  */
 public class ThreadMonitoringController {
+	private static boolean FINE_GRANULAR = MonitoringConfiguration.FINE_GRANULAR_INIT;
+	private static final String OUTPATH = MonitoringConfiguration.OUTPATH;
 	
-	private static boolean FINE_GRANULAR = false;
-
 	private static final int INITIAL_SERVICE_DEPTH_COUNT = 10;
 
 	private static final ITimeSource TIME_SOURCE = MonitoringController.getInstance().getTimeSource();
-
-	private static final String OUTPATH = "/Users/David/monitoring-teastore/";
 
 	private static final ThreadLocal<ThreadMonitoringController> CONTROLLER = ThreadLocal
 			.withInitial(new Supplier<ThreadMonitoringController>() {
@@ -97,15 +91,45 @@ public class ThreadMonitoringController {
 		this.cpuSamplerActive = false;
 	}
 	
+	public void newMonitoringController(boolean cpuSampling) {
+		if (cpuSamplerActive) {
+			unregisterCpuSampler();
+		}
+		monitoringController.terminateMonitoring();
+		
+		final Configuration configuration = ConfigurationFactory.createDefaultConfiguration();
+		configuration.setProperty(ConfigurationFactory.METADATA, "true");
+		configuration.setProperty(ConfigurationFactory.AUTO_SET_LOGGINGTSTAMP, "true");
+		configuration.setProperty(ConfigurationFactory.WRITER_CLASSNAME, AsciiFileWriter.class.getName());
+		// configuration.setProperty(WriterController.RECORD_QUEUE_SIZE, "5");
+		configuration.setProperty(AsciiFileWriter.CONFIG_FLUSH, "true");
+		configuration.setProperty(ConfigurationFactory.TIMER_CLASSNAME, "kieker.monitoring.timer.SystemMilliTimer");
+		configuration.setProperty(AsciiFileWriter.CONFIG_PATH, OUTPATH);
+
+		monitoringController = MonitoringController.createInstance(configuration);
+		
+		if (cpuSamplerActive) {
+			cpuSamplerActive = false;
+			registerCpuSampler(MonitoringMetadata.CONTAIMER_SIMPLE_SERVER, "<none>", cpuSampling);
+		} else {
+			registerCpuSampler(MonitoringMetadata.CONTAIMER_SIMPLE_SERVER, "<none>", cpuSampling);
+		}
+	}
+	
+	public void swapFineGranular() {
+		FINE_GRANULAR = !FINE_GRANULAR;
+	}
+	
 	public void registerCpuSampler(String containerId, String sessionId) {
 		this.registerCpuSampler(containerId, sessionId, false);
 	}
 
 	public void registerCpuSampler(String containerId, String sessionId, boolean force) {
 		if (!cpuSamplerActive && (FINE_GRANULAR || force)) {
+			System.out.println("Reregister CPU sampler.");
 			CPUSamplingJob job = new CPUSamplingJob(containerId, sessionId);
 
-			samplerJob = monitoringController.schedulePeriodicSampler(job, 0, 100, TimeUnit.MILLISECONDS);
+			samplerJob = monitoringController.schedulePeriodicSampler(job, 0, 150, TimeUnit.MILLISECONDS);
 			cpuSamplerActive = true;
 		}
 	}

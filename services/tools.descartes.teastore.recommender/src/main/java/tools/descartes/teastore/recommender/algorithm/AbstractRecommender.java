@@ -26,9 +26,6 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.Map.Entry;
 
-import org.cocome.tradingsystem.inventory.application.store.monitoring.MonitoringMetadata;
-import org.cocome.tradingsystem.inventory.application.store.monitoring.ServiceParameters;
-import org.cocome.tradingsystem.inventory.application.store.monitoring.ThreadMonitoringController;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,6 +39,10 @@ import tools.descartes.teastore.recommender.algorithm.impl.cf.PreprocessedSlopeO
 import tools.descartes.teastore.recommender.algorithm.impl.cf.SlopeOneRecommender;
 import tools.descartes.teastore.recommender.algorithm.impl.orderbased.OrderBasedRecommender;
 import tools.descartes.teastore.recommender.algorithm.impl.pop.PopularityBasedRecommender;
+import tools.descartes.teastore.recommender.monitoring.MonitoringConfiguration;
+import tools.descartes.teastore.recommender.monitoring.MonitoringMetadata;
+import tools.descartes.teastore.recommender.monitoring.ServiceParameters;
+import tools.descartes.teastore.recommender.monitoring.ThreadMonitoringController;
 
 /**
  * Abstract class for basic recommendation functionality.
@@ -62,7 +63,6 @@ public abstract class AbstractRecommender implements IRecommender {
 	}
 
 	private boolean trainingFinished = false;
-	public static boolean evolutionRecognized = false;
 
 	/**
 	 * Defines the maximum number of recommendations different implementations
@@ -128,7 +128,7 @@ public abstract class AbstractRecommender implements IRecommender {
 					totalProducts.add(orderItem.getProductId());
 				}
 				// monitoring
-				if (k++ % 10 == 0) {
+				if (k++ % 2000 == 0) {
 					ThreadMonitoringController.getInstance().logResponseTime(MonitoringMetadata.INTERNAL_ITEM_PROCESS,
 							MonitoringMetadata.RESOURCE_CPU, startOrder);
 				}
@@ -171,7 +171,8 @@ public abstract class AbstractRecommender implements IRecommender {
 			long preprocStart = ThreadMonitoringController.getInstance().getTime();
 			executePreprocessing();
 			ThreadMonitoringController.getInstance().logResponseTime(MonitoringMetadata.INTERNAL_PREPROCESS,
-					MonitoringMetadata.RESOURCE_CPU, preprocStart, evolutionRecognized);
+					MonitoringMetadata.RESOURCE_CPU, preprocStart,
+					MonitoringConfiguration.EVOLUTION_RECOGNIZED);
 			LOG.info("Training recommender finished. Training took: " + (System.currentTimeMillis() - tic) + "ms.");
 			trainingFinished = true;
 		} finally {

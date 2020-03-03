@@ -1,7 +1,4 @@
-package org.cocome.tradingsystem.inventory.application.store.monitoring;
-
-import kieker.common.record.IMonitoringRecord;
-import tools.descartes.teastore.recommender.algorithm.RecommenderEnum;
+package tools.descartes.teastore.recommender.monitoring;
 
 /**
  * Service parameter serialization.

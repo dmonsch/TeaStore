@@ -1,4 +1,4 @@
-package org.cocome.tradingsystem.inventory.application.store.monitoring;
+package tools.descartes.teastore.recommender.monitoring;
 
 import org.hyperic.sigar.Sigar;
 

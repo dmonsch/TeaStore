@@ -17,27 +17,27 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.UUID;
+import java.util.Random;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
-import javax.naming.InitialContext;
-import javax.naming.NamingException;
-
-import org.cocome.tradingsystem.inventory.application.store.monitoring.MonitoringMetadata;
-import org.cocome.tradingsystem.inventory.application.store.monitoring.ServiceParameters;
-import org.cocome.tradingsystem.inventory.application.store.monitoring.ThreadMonitoringController;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.beust.jcommander.internal.Lists;
 
+import tools.descartes.teastore.entities.Order;
+import tools.descartes.teastore.entities.OrderItem;
 import tools.descartes.teastore.recommender.algorithm.impl.UseFallBackException;
 import tools.descartes.teastore.recommender.algorithm.impl.cf.PreprocessedSlopeOneRecommender;
 import tools.descartes.teastore.recommender.algorithm.impl.cf.SlopeOneRecommender;
 import tools.descartes.teastore.recommender.algorithm.impl.orderbased.OrderBasedRecommender;
 import tools.descartes.teastore.recommender.algorithm.impl.pop.PopularityBasedRecommender;
+import tools.descartes.teastore.recommender.monitoring.MonitoringConfiguration;
+import tools.descartes.teastore.recommender.monitoring.MonitoringMetadata;
+import tools.descartes.teastore.recommender.monitoring.ThreadMonitoringController;
+import tools.descartes.teastore.recommender.monitoring.util.RemoteDatabaseUtil;
 import tools.descartes.teastore.recommender.servlet.TrainingSynchronizer;
-import tools.descartes.teastore.entities.Order;
-import tools.descartes.teastore.entities.OrderItem;
 
 /**
  * A strategy selector for the Recommender functionality.
@@ -45,15 +45,20 @@ import tools.descartes.teastore.entities.OrderItem;
  * @author Johannes Grohmann
  *
  */
-public final class RecommenderSelector implements IRecommender {
 
-	private int EVOLUTION_SCENARIO = 2;
+public final class RecommenderSelector implements IRecommender {
+	private static final Logger LOG = LoggerFactory.getLogger(RecommenderSelector.class);
+	
+	// get the current scenario
+	private static final int EVOLUTION_SCENARIO = MonitoringConfiguration.EVOLUTION_SCENARIO;
 
 	/**
 	 * This map lists all currently available recommending approaches and assigns
 	 * them their "name" for the environment variable.
 	 */
 	private static Map<RecommenderEnum, Class<? extends IRecommender>> recommenders = new HashMap<>();
+	private static RecommenderSelector instance;
+	private Map<RecommenderEnum, IRecommender> recommenderInstances;
 
 	static {
 		recommenders = new HashMap<RecommenderEnum, Class<? extends IRecommender>>();
@@ -62,18 +67,26 @@ public final class RecommenderSelector implements IRecommender {
 		recommenders.put(RecommenderEnum.PREPROC_SLOPE_ONE, PreprocessedSlopeOneRecommender.class);
 		recommenders.put(RecommenderEnum.ORDER_BASED, OrderBasedRecommender.class);
 	}
+	
+	// for evolution scenario 3 (syncing)
+	private boolean stopped = false;
+	private boolean evolutionStarted = false;
 
-	private static final Logger LOG = LoggerFactory.getLogger(RecommenderSelector.class);
+	// for evolution scenario 3
+	private RecommenderEnum currentlySelected = RecommenderEnum.POPULARITY; // start with
+	private RecommenderEnum[] staticFollows = new RecommenderEnum[] { RecommenderEnum.SLOPE_ONE,
+			RecommenderEnum.PREPROC_SLOPE_ONE, RecommenderEnum.ORDER_BASED }; // following ones
+	private int currentSelectedId = -1; // current selection
+	private int innerState = 0; // fine grained or coarse grained
 
-	private static RecommenderSelector instance;
-
-	private Map<RecommenderEnum, IRecommender> recommenderInstances;
+	private RemoteDatabaseUtil databaseUtil;
 
 	/**
 	 * Private Constructor.
 	 */
 	private RecommenderSelector() {
 		this.recommenderInstances = new HashMap<>();
+		this.databaseUtil = new RemoteDatabaseUtil();
 
 		for (RecommenderEnum val : RecommenderEnum.values()) {
 			try {
@@ -84,7 +97,7 @@ public final class RecommenderSelector implements IRecommender {
 		}
 
 		ThreadMonitoringController.getInstance().registerCpuSampler(MonitoringMetadata.CONTAIMER_SIMPLE_SERVER,
-				"<none>", EVOLUTION_SCENARIO == 2 && AbstractRecommender.evolutionRecognized);
+				"<none>", MonitoringConfiguration.FINE_GRANULAR_INIT || MonitoringConfiguration.EVOLUTION_RECOGNIZED);
 	}
 
 	@Override
@@ -95,15 +108,11 @@ public final class RecommenderSelector implements IRecommender {
 			TrainingSynchronizer.getInstance().retrieveDataAndRetrain();
 		}
 
-		long start = System.currentTimeMillis();
 		try {
 			IRecommender resolved = this.recommenderInstances.get(recommender);
 			return resolved.recommendProducts(userid, currentItems, recommender);
 		} catch (UseFallBackException e) {
 			return Lists.newArrayList();
-		} finally {
-			// java.lang.System.out.println("Recommending needed " +
-			// (System.currentTimeMillis() - start) + "ms.");
 		}
 	}
 
@@ -130,15 +139,71 @@ public final class RecommenderSelector implements IRecommender {
 	 */
 	@Override
 	public synchronized void train(List<OrderItem> orderItems, List<Order> orders) {
+		if (stopped) {
+			return;
+		}
 		// train all
 		if (EVOLUTION_SCENARIO == 1) {
 			// only train one
-			recommenderInstances.get(RecommenderEnum.POPULARITY).train(orderItems, orders);
+			recommenderInstances.get(RecommenderEnum.PREPROC_SLOPE_ONE).train(orderItems, orders);
 		} else if (EVOLUTION_SCENARIO == 2) {
+			// train all
 			for (Entry<RecommenderEnum, IRecommender> entry : recommenderInstances.entrySet()) {
 				entry.getValue().train(orderItems, orders);
 			}
+		} else if (EVOLUTION_SCENARIO == 3) {
+			// train one that is selected atm
+			recommenderInstances.get(currentlySelected).train(orderItems, orders);
+
+			// start evolution, if not yet done
+			if (EVOLUTION_SCENARIO == 3 && !evolutionStarted) {
+				evolutionStarted = true;
+				Executors.newScheduledThreadPool(1).scheduleAtFixedRate(() -> updateScenario(), 10, 10,
+						TimeUnit.MINUTES);
+			}
 		}
+	}
+
+	private void updateScenario() {
+		if (innerState == 0) {
+			// separate monitoring data of iterations
+			ThreadMonitoringController.getInstance().newMonitoringController(false);
+			switchInnerState();
+		} else {
+			stopped = true;
+			swapCurrentRecommenderImplementation();
+
+			// separate monitoring data of iterations
+			ThreadMonitoringController.getInstance().newMonitoringController(true);
+
+			// clear database if it is conceptual a new iteration
+			if (MonitoringConfiguration.EVOLUTION_CLEAR_DB_AFTER_COMMIT) {
+				databaseUtil.clearDatabase();
+			}
+
+			switchInnerState();
+			stopped = false;
+		}
+	}
+
+	private void swapCurrentRecommenderImplementation() {
+		int nextSelection = ++currentSelectedId;
+		if (nextSelection >= staticFollows.length) {
+			// random selection
+			Random rand = new Random();
+			int randomSelection = rand.nextInt(RecommenderEnum.values().length);
+			while (RecommenderEnum.values()[randomSelection] == currentlySelected) {
+				randomSelection = rand.nextInt(RecommenderEnum.values().length);
+			}
+			currentlySelected = RecommenderEnum.values()[randomSelection];
+		} else {
+			currentlySelected = staticFollows[nextSelection];
+		}
+	}
+
+	private void switchInnerState() {
+		MonitoringConfiguration.EVOLUTION_RECOGNIZED = !MonitoringConfiguration.EVOLUTION_RECOGNIZED;
+		innerState = innerState == 0 ? 1 : 0;
 	}
 
 }

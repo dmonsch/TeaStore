@@ -205,6 +205,17 @@ public final class DataGenerator {
 		setGenerationFinishedFlag(true);
 		CacheManager.MANAGER.clearAllCaches();
 	}
+	
+	public void softGenerateDatabaseContent(int categories, int productsPerCategory,
+			int users, int maxOrdersPerUser) {
+		setGenerationFinishedFlag(false);
+		random = new Random(5);
+		generateCategories(categories);
+		generateProducts(productsPerCategory);
+		generateUsers(users);
+		generateOrders(maxOrdersPerUser, productsPerCategory);
+		setGenerationFinishedFlag(true);
+	}
 
 	private void generateCategories(int categories) {
 		for (int i = 0; i < categories; i++) {
@@ -264,7 +275,7 @@ public final class DataGenerator {
 		});
 	}
 	
-	private void generateOrders(int maxOrdersPerUser, int productsPerCategory) {
+	public void generateOrders(int maxOrdersPerUser, int productsPerCategory) {
 		UserRepository.REPOSITORY.getAllEntities().parallelStream().forEach(user -> {
 			for (int i = 0; i < random.nextInt(maxOrdersPerUser + 1); i++) {
 				Order order = new Order();
@@ -341,6 +352,13 @@ public final class DataGenerator {
 		CacheManager.MANAGER.resetLocalEMF();
 		setGenerationFinishedFlag(false);
 		CacheManager.MANAGER.clearAllCaches();
+	}
+	
+	public void softDropAndCreate() {
+		ServerSession session = CategoryRepository.REPOSITORY.getEM().unwrap(ServerSession.class);  
+		SchemaManager schemaManager = new SchemaManager(session);
+		schemaManager.replaceDefaultTables(true, true);
+		setGenerationFinishedFlag(false);
 	}
 	
 	private void setGenerationFinishedFlag(boolean flag) {
