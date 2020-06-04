@@ -44,6 +44,12 @@
 			<artifactId>entities</artifactId>
 			<version>${teastoreversion}</version>
 		</dependency>
+		
+		<dependency>
+			<groupId>tools.descartes.teastore</groupId>
+			<artifactId>tools.descartes.teastore.monitoring</artifactId>
+			<version>${teastoreversion}</version>
+		</dependency>
 
 		<dependency> <!-- Logging framework also used by ribbon -->
 			<groupId>org.slf4j</groupId>

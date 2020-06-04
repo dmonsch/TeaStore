@@ -25,10 +25,13 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import dmodel.designtime.monitoring.controller.ServiceParameters;
+import dmodel.designtime.monitoring.controller.ThreadMonitoringController;
 import tools.descartes.teastore.registryclient.loadbalancers.LoadBalancerTimeoutException;
 import tools.descartes.teastore.registryclient.rest.LoadBalancedStoreOperations;
 import tools.descartes.teastore.entities.OrderItem;
 import tools.descartes.teastore.entities.message.SessionBlob;
+import tools.descartes.teastore.monitoring.TeastoreMonitoringMetadata;
 
 /**
  * Servlet for handling all cart actions.
@@ -99,22 +102,37 @@ public class CartActionServlet extends AbstractUIServlet {
 	 * @throws IOException
 	 */
 	private void confirmOrder(HttpServletRequest request, HttpServletResponse response) throws IOException {
-
 		String[] infos = extractOrderInformation(request);
 		if (infos.length == 0) {
 			redirect("/order", response);
 		} else {
-
 			SessionBlob blob = getSessionBlob(request);
-			long price = 0;
-			for (OrderItem item : blob.getOrderItems()) {
-				price += item.getQuantity() * item.getUnitPriceInCents();
+
+			ServiceParameters parameters = new ServiceParameters();
+			parameters.addValue("items.VALUE", blob.getOrderItems().size());
+
+			ThreadMonitoringController.setSessionId(blob.getSID());
+			ThreadMonitoringController.getInstance()
+					.enterService(TeastoreMonitoringMetadata.SERVICE_WEBUI_CONFIRM_ORDER, this, parameters);
+
+			try {
+				long price = 0;
+				for (OrderItem item : blob.getOrderItems()) {
+					price += item.getQuantity() * item.getUnitPriceInCents();
+				}
+
+				blob.setMonitoringExternalId(TeastoreMonitoringMetadata.EXTERNAL_CALL_WEBUI_LOADBALANCER_PLACE_ORDER);
+				blob.setMonitoringTraceId(ThreadMonitoringController.getInstance().getCurrentTraceId());
+
+				blob = LoadBalancedStoreOperations.placeOrder(blob, infos[0] + " " + infos[1], infos[2], infos[3],
+						infos[4], YearMonth.parse(infos[6], DTF).atDay(1).format(DateTimeFormatter.ISO_LOCAL_DATE),
+						price, infos[5]);
+				saveSessionBlob(blob, response);
+				redirect("/", response, MESSAGECOOKIE, ORDERCONFIRMED);
+			} finally {
+				ThreadMonitoringController.getInstance()
+						.exitService(TeastoreMonitoringMetadata.SERVICE_WEBUI_CONFIRM_ORDER);
 			}
-			blob = LoadBalancedStoreOperations.placeOrder(getSessionBlob(request), infos[0] + " " + infos[1], infos[2],
-					infos[3], infos[4],
-					YearMonth.parse(infos[6], DTF).atDay(1).format(DateTimeFormatter.ISO_LOCAL_DATE), price, infos[5]);
-			saveSessionBlob(blob, response);
-			redirect("/", response, MESSAGECOOKIE, ORDERCONFIRMED);
 		}
 
 	}

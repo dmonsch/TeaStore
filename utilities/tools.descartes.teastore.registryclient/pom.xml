@@ -17,6 +17,12 @@
 			<version>${teastoreversion}</version>
 		</dependency>
 		<dependency>
+			<groupId>tools.descartes.teastore</groupId>
+			<artifactId>tools.descartes.teastore.monitoring</artifactId>
+			<version>${teastoreversion}</version>
+		</dependency>
+		
+		<dependency>
 			<groupId>net.kieker-monitoring</groupId>
 			<artifactId>kieker</artifactId>
 			<version>1.13</version>

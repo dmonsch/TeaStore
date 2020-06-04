@@ -24,6 +24,8 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Response;
 
+import dmodel.designtime.monitoring.controller.ServiceParameters;
+import dmodel.designtime.monitoring.controller.ThreadMonitoringController;
 import tools.descartes.teastore.auth.security.BCryptProvider;
 import tools.descartes.teastore.auth.security.RandomSessionIdGenerator;
 import tools.descartes.teastore.auth.security.ShaSecurityProvider;
@@ -31,6 +33,7 @@ import tools.descartes.teastore.entities.Order;
 import tools.descartes.teastore.entities.OrderItem;
 import tools.descartes.teastore.entities.User;
 import tools.descartes.teastore.entities.message.SessionBlob;
+import tools.descartes.teastore.monitoring.TeastoreMonitoringMetadata;
 import tools.descartes.teastore.registryclient.Service;
 import tools.descartes.teastore.registryclient.loadbalancers.LoadBalancerTimeoutException;
 import tools.descartes.teastore.registryclient.rest.LoadBalancedCRUDOperations;
@@ -47,140 +50,147 @@ import tools.descartes.teastore.registryclient.util.TimeoutException;
 @Consumes({ "application/json" })
 public class AuthUserActionsRest {
 
-  /**
-   * Persists order in database.
-   * 
-   * @param blob
-   *          SessionBlob
-   * @param totalPriceInCents
-   *          totalPrice
-   * @param addressName
-   *          address
-   * @param address1
-   *          address
-   * @param address2
-   *          address
-   * @param creditCardCompany
-   *          creditcard
-   * @param creditCardNumber
-   *          creditcard
-   * @param creditCardExpiryDate
-   *          creditcard
-   * @return Response containing SessionBlob
-   */
-  @POST
-  @Path("placeorder")
-  public Response placeOrder(SessionBlob blob,
-      @QueryParam("totalPriceInCents") long totalPriceInCents,
-      @QueryParam("addressName") String addressName, @QueryParam("address1") String address1,
-      @QueryParam("address2") String address2,
-      @QueryParam("creditCardCompany") String creditCardCompany,
-      @QueryParam("creditCardNumber") String creditCardNumber,
-      @QueryParam("creditCardExpiryDate") String creditCardExpiryDate) {
-    if (new ShaSecurityProvider().validate(blob) == null || blob.getOrderItems().isEmpty()) {
-      return Response.status(Response.Status.NOT_FOUND).build();
-    }
+	/**
+	 * Persists order in database.
+	 * 
+	 * @param blob                 SessionBlob
+	 * @param totalPriceInCents    totalPrice
+	 * @param addressName          address
+	 * @param address1             address
+	 * @param address2             address
+	 * @param creditCardCompany    creditcard
+	 * @param creditCardNumber     creditcard
+	 * @param creditCardExpiryDate creditcard
+	 * @return Response containing SessionBlob
+	 */
+	@POST
+	@Path("placeorder")
+	public Response placeOrder(SessionBlob blob, @QueryParam("totalPriceInCents") long totalPriceInCents,
+			@QueryParam("addressName") String addressName, @QueryParam("address1") String address1,
+			@QueryParam("address2") String address2, @QueryParam("creditCardCompany") String creditCardCompany,
+			@QueryParam("creditCardNumber") String creditCardNumber,
+			@QueryParam("creditCardExpiryDate") String creditCardExpiryDate,
+			@QueryParam("monitoringTraceId") String monitoringTraceId,
+			@QueryParam("monitoringExternalId") String monitoringExternalId) {
+		if (new ShaSecurityProvider().validate(blob) == null || blob.getOrderItems().isEmpty()) {
+			return Response.status(Response.Status.NOT_FOUND).build();
+		}
+		ThreadMonitoringController.getInstance().continueFromRemote(monitoringTraceId, monitoringExternalId);
+		ThreadMonitoringController.setSessionId(blob.getSID());
 
-    blob.getOrder().setUserId(blob.getUID());
-    blob.getOrder().setTotalPriceInCents(totalPriceInCents);
-    blob.getOrder().setAddressName(addressName);
-    blob.getOrder().setAddress1(address1);
-    blob.getOrder().setAddress2(address2);
-    blob.getOrder().setCreditCardCompany(creditCardCompany);
-    blob.getOrder().setCreditCardExpiryDate(creditCardExpiryDate);
-    blob.getOrder().setCreditCardNumber(creditCardNumber);
-    blob.getOrder().setTime(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+		ServiceParameters parameters = new ServiceParameters();
+		parameters.addValue("items.VALUE", blob.getOrderItems().size());
+		ThreadMonitoringController.getInstance().enterService(TeastoreMonitoringMetadata.SERVICE_AUTH_PLACE_ORDER, this,
+				parameters);
 
-    long orderId;
-    try {
-      orderId = LoadBalancedCRUDOperations.sendEntityForCreation(Service.PERSISTENCE, "orders",
-          Order.class, blob.getOrder());
-    } catch (LoadBalancerTimeoutException e) {
-      return Response.status(408).build();
-    } catch (NotFoundException e) {
-      return Response.status(404).build();
-    }
-    for (OrderItem item : blob.getOrderItems()) {
-      try {
-        item.setOrderId(orderId);
-        LoadBalancedCRUDOperations.sendEntityForCreation(Service.PERSISTENCE, "orderitems",
-            OrderItem.class, item);
-      } catch (TimeoutException e) {
-        return Response.status(408).build();
-      } catch (NotFoundException e) {
-        return Response.status(404).build();
-      }
-    }
-    blob.setOrder(new Order());
-    blob.getOrderItems().clear();
-    blob = new ShaSecurityProvider().secure(blob);
-    return Response.status(Response.Status.OK).entity(blob).build();
-  }
+		try {
+			ThreadMonitoringController.getInstance().enterInternalAction(
+					TeastoreMonitoringMetadata.INTERNAL_ACTION_PREPROCESS_ORDER,
+					TeastoreMonitoringMetadata.RESOURCE_CPU);
+			blob.getOrder().setUserId(blob.getUID());
+			blob.getOrder().setTotalPriceInCents(totalPriceInCents);
+			blob.getOrder().setAddressName(addressName);
+			blob.getOrder().setAddress1(address1);
+			blob.getOrder().setAddress2(address2);
+			blob.getOrder().setCreditCardCompany(creditCardCompany);
+			blob.getOrder().setCreditCardExpiryDate(creditCardExpiryDate);
+			blob.getOrder().setCreditCardNumber(creditCardNumber);
+			blob.getOrder().setTime(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+			ThreadMonitoringController.getInstance().exitInternalAction(
+					TeastoreMonitoringMetadata.INTERNAL_ACTION_PREPROCESS_ORDER,
+					TeastoreMonitoringMetadata.RESOURCE_CPU);
 
-  /**
-   * User login.
-   * 
-   * @param blob
-   *          SessionBlob
-   * @param name
-   *          Username
-   * @param password
-   *          password
-   * @return Response with SessionBlob containing login information.
-   */
-  @POST
-  @Path("login")
-  public Response login(SessionBlob blob, @QueryParam("name") String name,
-      @QueryParam("password") String password) {
-    User user;
-    try {
-      user = LoadBalancedCRUDOperations.getEntityWithProperties(Service.PERSISTENCE, "users",
-          User.class, "name", name);
-    } catch (TimeoutException e) {
-      return Response.status(408).build();
-    } catch (NotFoundException e) {
-      return Response.status(Response.Status.OK).entity(blob).build();
-    }
+			long orderId;
+			try {
+				orderId = LoadBalancedCRUDOperations.sendEntityForCreation(Service.PERSISTENCE, "orders", Order.class,
+						blob.getOrder());
+			} catch (LoadBalancerTimeoutException e) {
+				return Response.status(408).build();
+			} catch (NotFoundException e) {
+				return Response.status(404).build();
+			}
+			for (OrderItem item : blob.getOrderItems()) {
+				try {
+					item.setOrderId(orderId);
+					LoadBalancedCRUDOperations.sendEntityForCreation(Service.PERSISTENCE, "orderitems", OrderItem.class,
+							item);
+				} catch (TimeoutException e) {
+					return Response.status(408).build();
+				} catch (NotFoundException e) {
+					return Response.status(404).build();
+				}
+			}
 
-    if (user != null && BCryptProvider.checkPassword(password, user.getPassword())
-    ) {
-      blob.setUID(user.getId());
-      blob.setSID(new RandomSessionIdGenerator().getSessionId());
-      blob = new ShaSecurityProvider().secure(blob);
-      return Response.status(Response.Status.OK).entity(blob).build();
-    }
-    return Response.status(Response.Status.OK).entity(blob).build();
-  }
+			ThreadMonitoringController.getInstance().enterInternalAction(
+					TeastoreMonitoringMetadata.INTERNAL_ACTION_FINALIZE_ORDER, TeastoreMonitoringMetadata.RESOURCE_CPU);
+			blob.setOrder(new Order());
+			blob.getOrderItems().clear();
+			blob = new ShaSecurityProvider().secure(blob);
+			ThreadMonitoringController.getInstance().exitInternalAction(
+					TeastoreMonitoringMetadata.INTERNAL_ACTION_FINALIZE_ORDER, TeastoreMonitoringMetadata.RESOURCE_CPU);
 
-  /**
-   * User logout.
-   * 
-   * @param blob
-   *          SessionBlob
-   * @return Response with SessionBlob
-   */
-  @POST
-  @Path("logout")
-  public Response logout(SessionBlob blob) {
-    blob.setUID(null);
-    blob.setSID(null);
-    blob.setOrder(new Order());
-    blob.getOrderItems().clear();
-    return Response.status(Response.Status.OK).entity(blob).build();
-  }
+			return Response.status(Response.Status.OK).entity(blob).build();
+		} finally {
+			ThreadMonitoringController.getInstance().exitService(TeastoreMonitoringMetadata.SERVICE_AUTH_PLACE_ORDER);
+		}
+	}
 
-  /**
-   * Checks if user is logged in.
-   * 
-   * @param blob
-   *          Sessionblob
-   * @return Response with true if logged in
-   */
-  @POST
-  @Path("isloggedin")
-  public Response isLoggedIn(SessionBlob blob) {
-    return Response.status(Response.Status.OK).entity(new ShaSecurityProvider().validate(blob))
-        .build();
-  }
+	/**
+	 * User login.
+	 * 
+	 * @param blob     SessionBlob
+	 * @param name     Username
+	 * @param password password
+	 * @return Response with SessionBlob containing login information.
+	 */
+	@POST
+	@Path("login")
+	public Response login(SessionBlob blob, @QueryParam("name") String name, @QueryParam("password") String password) {
+		User user;
+		try {
+			user = LoadBalancedCRUDOperations.getEntityWithProperties(Service.PERSISTENCE, "users", User.class, "name",
+					name);
+		} catch (TimeoutException e) {
+			return Response.status(408).build();
+		} catch (NotFoundException e) {
+			return Response.status(Response.Status.OK).entity(blob).build();
+		}
+
+		if (user != null && BCryptProvider.checkPassword(password, user.getPassword())) {
+			blob.setUID(user.getId());
+			blob.setSID(new RandomSessionIdGenerator().getSessionId());
+			blob = new ShaSecurityProvider().secure(blob);
+			return Response.status(Response.Status.OK).entity(blob).build();
+		}
+		return Response.status(Response.Status.OK).entity(blob).build();
+	}
+
+	/**
+	 * User logout.
+	 * 
+	 * @param blob SessionBlob
+	 * @return Response with SessionBlob
+	 */
+	@POST
+	@Path("logout")
+	public Response logout(SessionBlob blob) {
+		blob.setUID(null);
+		blob.setSID(null);
+		blob.setOrder(new Order());
+		blob.getOrderItems().clear();
+		return Response.status(Response.Status.OK).entity(blob).build();
+	}
+
+	/**
+	 * Checks if user is logged in.
+	 * 
+	 * @param blob Sessionblob
+	 * @return Response with true if logged in
+	 */
+	@POST
+	@Path("isloggedin")
+	public Response isLoggedIn(SessionBlob blob) {
+		return Response.status(Response.Status.OK).entity(new ShaSecurityProvider().validate(blob)).build();
+	}
 
 }

@@ -29,6 +29,7 @@
 		<module>services/tools.descartes.teastore.auth</module>
 		<module>services/tools.descartes.teastore.webui</module>
 		<module>./utilities/tools.descartes.teastore.docker.all</module>
+		<module>tools.descartes.teastore.monitoring</module>
 	</modules>
 
 	<build>
