@@ -23,10 +23,12 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Response;
 
+import dmodel.designtime.monitoring.controller.ThreadMonitoringController;
 import tools.descartes.teastore.auth.security.ShaSecurityProvider;
 import tools.descartes.teastore.entities.OrderItem;
 import tools.descartes.teastore.entities.Product;
 import tools.descartes.teastore.entities.message.SessionBlob;
+import tools.descartes.teastore.monitoring.TeastoreMonitoringMetadata;
 import tools.descartes.teastore.registryclient.Service;
 import tools.descartes.teastore.registryclient.rest.LoadBalancedCRUDOperations;
 import tools.descartes.teastore.registryclient.util.NotFoundException;
@@ -42,95 +44,106 @@ import tools.descartes.teastore.registryclient.util.TimeoutException;
 @Consumes({ "application/json" })
 public class AuthCartRest {
 
-  /**
-   * Adds product to cart. If the product is already in the cart the quantity is
-   * increased.
-   * 
-   * @param blob
-   *          Sessionblob
-   * @param pid
-   *          productid
-   * @return Response containing session blob with updated cart
-   */
-  @POST
-  @Path("add/{pid}")
-  public Response addProductToCart(SessionBlob blob, @PathParam("pid") final Long pid) {
-    Product product;
-    try {
-      product = LoadBalancedCRUDOperations.getEntity(Service.PERSISTENCE, "products", Product.class,
-          pid);
-    } catch (TimeoutException e) {
-      return Response.status(408).build();
-    } catch (NotFoundException e) {
-      return Response.status(404).build();
-    }
+	/**
+	 * Adds product to cart. If the product is already in the cart the quantity is
+	 * increased.
+	 * 
+	 * @param blob Sessionblob
+	 * @param pid  productid
+	 * @return Response containing session blob with updated cart
+	 */
+	@POST
+	@Path("add/{pid}")
+	public Response addProductToCart(SessionBlob blob, @PathParam("pid") final Long pid) {
+		Product product;
+		try {
+			product = LoadBalancedCRUDOperations.getEntity(Service.PERSISTENCE, "products", Product.class, pid);
+		} catch (TimeoutException e) {
+			return Response.status(408).build();
+		} catch (NotFoundException e) {
+			return Response.status(404).build();
+		}
 
-    for (OrderItem orderItem : blob.getOrderItems()) {
-      if (orderItem.getProductId() == pid) {
-        orderItem.setQuantity(orderItem.getQuantity() + 1);
-        blob = new ShaSecurityProvider().secure(blob);
-        return Response.status(Response.Status.OK).entity(blob).build();
-      }
-    }
-    OrderItem item = new OrderItem();
-    item.setProductId(pid);
-    item.setQuantity(1);
-    item.setUnitPriceInCents(product.getListPriceInCents());
-    blob.getOrderItems().add(item);
-    blob = new ShaSecurityProvider().secure(blob);
-    return Response.status(Response.Status.OK).entity(blob).build();
-  }
+		for (OrderItem orderItem : blob.getOrderItems()) {
+			if (orderItem.getProductId() == pid) {
+				orderItem.setQuantity(orderItem.getQuantity() + 1);
+				blob = new ShaSecurityProvider().secure(blob);
+				return Response.status(Response.Status.OK).entity(blob).build();
+			}
+		}
+		OrderItem item = new OrderItem();
+		item.setProductId(pid);
+		item.setQuantity(1);
+		item.setUnitPriceInCents(product.getListPriceInCents());
+		blob.getOrderItems().add(item);
+		blob = new ShaSecurityProvider().secure(blob);
+		return Response.status(Response.Status.OK).entity(blob).build();
+	}
 
-  /**
-   * Remove product from cart.
-   * 
-   * @param blob
-   *          Sessionblob
-   * @param pid
-   *          product id
-   * @return Response containing Sessionblob with updated cart
-   */
-  @POST
-  @Path("remove/{pid}")
-  public Response removeProductFromCart(SessionBlob blob, @PathParam("pid") final Long pid) {
-    OrderItem toRemove = null;
-    for (OrderItem item : blob.getOrderItems()) {
-      if (item.getProductId() == pid) {
-        toRemove = item;
-      }
-    }
-    if (toRemove != null) {
-      blob.getOrderItems().remove(toRemove);
-      blob = new ShaSecurityProvider().secure(blob);
-      return Response.status(Response.Status.OK).entity(blob).build();
-    } else {
-      return Response.status(Response.Status.NOT_FOUND).build();
-    }
-  }
+	/**
+	 * Remove product from cart.
+	 * 
+	 * @param blob Sessionblob
+	 * @param pid  product id
+	 * @return Response containing Sessionblob with updated cart
+	 */
+	@POST
+	@Path("remove/{pid}")
+	public Response removeProductFromCart(SessionBlob blob, @PathParam("pid") final Long pid) {
+		OrderItem toRemove = null;
+		for (OrderItem item : blob.getOrderItems()) {
+			if (item.getProductId() == pid) {
+				toRemove = item;
+			}
+		}
+		if (toRemove != null) {
+			blob.getOrderItems().remove(toRemove);
+			blob = new ShaSecurityProvider().secure(blob);
+			return Response.status(Response.Status.OK).entity(blob).build();
+		} else {
+			return Response.status(Response.Status.NOT_FOUND).build();
+		}
+	}
 
-  /**
-   * Updates quantity of product in cart.
-   * 
-   * @param blob
-   *          Sessionblob
-   * @param pid
-   *          Productid
-   * @param quantity
-   *          New quantity
-   * @return Response containing Sessionblob with updated cart
-   */
-  @PUT
-  @Path("{pid}")
-  public Response updateQuantity(SessionBlob blob, @PathParam("pid") final Long pid,
-      @QueryParam("quantity") int quantity) {
-    for (OrderItem item : blob.getOrderItems()) {
-      if (item.getProductId() == pid) {
-        item.setQuantity(quantity);
-        blob = new ShaSecurityProvider().secure(blob);
-        return Response.status(Response.Status.OK).entity(blob).build();
-      }
-    }
-    return Response.status(Response.Status.NOT_FOUND).build();
-  }
+	/**
+	 * Updates quantity of product in cart.
+	 * 
+	 * @param blob     Sessionblob
+	 * @param pid      Productid
+	 * @param quantity New quantity
+	 * @return Response containing Sessionblob with updated cart
+	 */
+	@PUT
+	@Path("{pid}")
+	public Response updateQuantity(SessionBlob blob, @PathParam("pid") final Long pid,
+			@QueryParam("quantity") int quantity, @QueryParam("monitoringTraceId") String monitoringTraceId,
+			@QueryParam("monitoringExternalId") String monitoringExternalId) {
+
+		ThreadMonitoringController.getInstance().continueFromRemote(monitoringTraceId, monitoringExternalId);
+		ThreadMonitoringController.setSessionId(blob.getSID());
+		ThreadMonitoringController.getInstance().enterService(TeastoreMonitoringMetadata.SERVICE_AUTH_UPDATE_ORDER,
+				this);
+
+		ThreadMonitoringController.getInstance().enterInternalAction(
+				TeastoreMonitoringMetadata.INTERNAL_ACTION_UPDATE_ORDER, TeastoreMonitoringMetadata.RESOURCE_CPU);
+
+		try {
+			for (OrderItem item : blob.getOrderItems()) {
+				if (item.getProductId() == pid) {
+					item.setQuantity(quantity);
+					blob = new ShaSecurityProvider().secure(blob);
+					return Response.status(Response.Status.OK).entity(blob).build();
+				}
+			}
+
+			return Response.status(Response.Status.NOT_FOUND).build();
+		} finally {
+			ThreadMonitoringController.getInstance().exitInternalAction(
+					TeastoreMonitoringMetadata.INTERNAL_ACTION_UPDATE_ORDER, TeastoreMonitoringMetadata.RESOURCE_CPU);
+			ThreadMonitoringController.getInstance().exitService(TeastoreMonitoringMetadata.SERVICE_AUTH_UPDATE_ORDER);
+			
+			ThreadMonitoringController.getInstance().detachFromRemote();
+		}
+	}
 
 }

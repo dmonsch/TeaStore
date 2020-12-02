@@ -23,6 +23,7 @@ import javax.naming.NamingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import dmodel.designtime.monitoring.controller.ThreadMonitoringController;
 import tools.descartes.teastore.recommender.algorithm.impl.UseFallBackException;
 import tools.descartes.teastore.recommender.algorithm.impl.cf.PreprocessedSlopeOneRecommender;
 import tools.descartes.teastore.recommender.algorithm.impl.cf.SlopeOneRecommender;
@@ -30,6 +31,7 @@ import tools.descartes.teastore.recommender.algorithm.impl.orderbased.OrderBased
 import tools.descartes.teastore.recommender.algorithm.impl.pop.PopularityBasedRecommender;
 import tools.descartes.teastore.entities.Order;
 import tools.descartes.teastore.entities.OrderItem;
+import tools.descartes.teastore.monitoring.TeastoreMonitoringMetadata;
 
 /**
  * A strategy selector for the Recommender functionality.
@@ -44,6 +46,7 @@ public final class RecommenderSelector implements IRecommender {
 	 * them their "name" for the environment variable.
 	 */
 	private static Map<String, Class<? extends IRecommender>> recommenders = new HashMap<>();
+	private static Map<Integer, String> recommenderIdMapping = new HashMap<>();
 
 	static {
 		recommenders = new HashMap<String, Class<? extends IRecommender>>();
@@ -51,6 +54,12 @@ public final class RecommenderSelector implements IRecommender {
 		recommenders.put("SlopeOne", SlopeOneRecommender.class);
 		recommenders.put("PreprocessedSlopeOne", PreprocessedSlopeOneRecommender.class);
 		recommenders.put("OrderBased", OrderBasedRecommender.class);
+		
+		recommenderIdMapping = new HashMap<>();
+		recommenderIdMapping.put(0, "Popularity");
+		recommenderIdMapping.put(1, "SlopeOne");
+		recommenderIdMapping.put(2, "PreprocessedSlopeOne");
+		recommenderIdMapping.put(3, "OrderBased");
 	}
 
 	/**
@@ -147,7 +156,19 @@ public final class RecommenderSelector implements IRecommender {
 	@Override
 	public void train(List<OrderItem> orderItems, List<Order> orders) {
 		recommender.train(orderItems, orders);
-		fallbackrecommender.train(orderItems, orders);
+		
+		// fallbackrecommender.train(orderItems, orders);
+	}
+
+	public void changeRecommender(int id) {
+		if (recommenderIdMapping.containsKey(id)) {
+			Class<? extends IRecommender> clazz = recommenders.get(recommenderIdMapping.get(id));
+			try {
+				this.recommender = clazz.newInstance();
+			} catch (InstantiationException | IllegalAccessException e) {
+				System.err.println("Could not create a new instance for the recommender.");
+			}
+		}
 	}
 
 }

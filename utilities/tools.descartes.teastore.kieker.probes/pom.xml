@@ -30,6 +30,12 @@
 			<artifactId>entities</artifactId>
 			<version>${teastoreversion}</version>
 		</dependency>
+		
+		<dependency>
+			<groupId>tools.descartes.teastore</groupId>
+			<artifactId>monitoring</artifactId>
+			<version>${teastoreversion}</version>
+		</dependency>
 	</dependencies>
 
 	<parent>

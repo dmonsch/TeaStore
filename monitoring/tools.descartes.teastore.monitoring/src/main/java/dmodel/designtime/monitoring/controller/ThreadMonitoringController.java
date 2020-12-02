@@ -188,6 +188,14 @@ public class ThreadMonitoringController {
 
 	}
 
+	public synchronized String getCurrentTraceId() {
+		if (this.serviceCallStack.get().isEmpty()) {
+			return null;
+		}
+
+		return this.serviceCallStack.get().peek().serviceExecutionId;
+	}
+
 	public synchronized void continueFromRemote(final String callerId, final String externalCallId) {
 		this.remoteStack.get().set(Pair.of(callerId, externalCallId));
 	}
@@ -196,12 +204,8 @@ public class ThreadMonitoringController {
 		this.remoteStack.get().clear();
 	}
 
-	public void setExternalCallId(String callId) {
+	public synchronized void setExternalCallId(String callId) {
 		this.currentExternalCallId.set(callId);
-	}
-	
-	public String getCurrentTraceId() {
-		return this.serviceCallStack.get().peek().serviceExecutionId;
 	}
 
 	/**
@@ -242,6 +246,7 @@ public class ThreadMonitoringController {
 					nTrack = new ServiceCallTrack(serviceId, getSessionId(), serviceParameters,
 							String.valueOf(System.identityHashCode(exId)), remoteStack.get().value.getLeft(),
 							remoteStack.get().value.getRight());
+					this.detachFromRemote();
 				} else {
 					nTrack = new ServiceCallTrack(serviceId, getSessionId(), serviceParameters,
 							String.valueOf(System.identityHashCode(exId)), null, externalCallId);
@@ -254,6 +259,7 @@ public class ThreadMonitoringController {
 			// push it
 			trace.push(nTrack);
 
+			nTrack.cumulatedMonitoringOverhead += (System.nanoTime() - start);
 			analysis.exitServiceCallOverhead(serviceId, start);
 		}
 	}
@@ -271,7 +277,8 @@ public class ThreadMonitoringController {
 			Stack<ServiceCallTrack> trace = serviceCallStack.get();
 
 			if (trace.empty()) {
-				throw new RuntimeException("The trace stack should never be empty when 'exitService' is called.");
+				System.out.println("WARNING: Trace stack was empty.");
+				return;
 			}
 
 			// exit current trace
@@ -283,7 +290,7 @@ public class ThreadMonitoringController {
 
 			if (!trace.isEmpty()) {
 				ServiceCallTrack parent = trace.peek();
-				parent.cumulatedMonitoringOverhead += track.cumulatedMonitoringOverhead;
+				parent.cumulatedMonitoringOverhead += track.cumulatedMonitoringOverhead + (System.nanoTime() - start);
 			}
 
 			// clear current external call
@@ -310,7 +317,7 @@ public class ThreadMonitoringController {
 	 * @param executedBranchId The abstract action id of the executed branch
 	 *                         transition.
 	 */
-	public void enterBranch(final String executedBranchId) {
+	public synchronized void enterBranch(final String executedBranchId) {
 		if ((!monitoredIdsInited || monitoredIds.contains(executedBranchId))
 				&& scaleController.shouldLog(executedBranchId)) {
 			long start = analysis.enterOverhead();
@@ -339,7 +346,7 @@ public class ThreadMonitoringController {
 	 * @param loopId             The abstract action id of the loop.
 	 * @param loopIterationCount The executed iterations of the loop.
 	 */
-	public void exitLoop(final String loopId, final long loopIterationCount) {
+	public synchronized void exitLoop(final String loopId, final long loopIterationCount) {
 		if ((!monitoredIdsInited || monitoredIds.contains(loopId)) && scaleController.shouldLog(loopId)) {
 			long start = analysis.enterOverhead();
 			Stack<ServiceCallTrack> trace = serviceCallStack.get();
@@ -367,7 +374,7 @@ public class ThreadMonitoringController {
 	 * @param resourceId       The id of the resource type.
 	 * @param startTime        The start time of the response time.
 	 */
-	public void enterInternalAction(final String internalActionId, final String resourceId) {
+	public synchronized void enterInternalAction(final String internalActionId, final String resourceId) {
 		if ((!monitoredIdsInited || monitoredIds.contains(internalActionId))
 				&& scaleController.shouldLog(internalActionId)) {
 			long start = analysis.enterOverhead();
@@ -385,7 +392,7 @@ public class ThreadMonitoringController {
 		}
 	}
 
-	public void exitInternalAction(final String internalActionId, final String resourceId) {
+	public synchronized void exitInternalAction(final String internalActionId, final String resourceId) {
 		if (!monitoredIdsInited || monitoredIds.contains(internalActionId)) {
 			long start = analysis.enterOverhead();
 
@@ -412,6 +419,20 @@ public class ThreadMonitoringController {
 			}
 
 			analysis.internalOverhead(internalActionId, start);
+		}
+	}
+
+	public synchronized void logInternalAction(final String internalActionId, final String resourceId, long start) {
+		if (!monitoredIdsInited || monitoredIds.contains(internalActionId)) {
+			long startOverhead = analysis.enterOverhead();
+
+			long end = System.currentTimeMillis();
+
+			ResponseTimeRecord record = new ResponseTimeRecord(currentSessionId.get(),
+					remoteStack.get().value.getLeft(), internalActionId, resourceId, start * 1000000, end * 1000000);
+			MONITORING_CONTROLLER.newMonitoringRecord(record);
+
+			analysis.internalOverhead(internalActionId, startOverhead);
 		}
 	}
 

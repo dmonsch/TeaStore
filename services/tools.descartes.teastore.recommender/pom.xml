@@ -23,6 +23,11 @@
 			<artifactId>kieker.probes</artifactId>
 			<version>${teastoreversion}</version>
 		</dependency>
+		<dependency>
+			<groupId>tools.descartes.teastore</groupId>
+			<artifactId>monitoring</artifactId>
+			<version>${teastoreversion}</version>
+		</dependency>
 
 		<!-- WebApp Dependencies -->
 		<!-- All inherited from registryclient. -->

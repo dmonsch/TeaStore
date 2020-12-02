@@ -16,6 +16,7 @@ package tools.descartes.teastore.webui.servlet;
 import java.io.IOException;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.UUID;
 
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
@@ -23,6 +24,8 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import dmodel.designtime.monitoring.controller.ServiceParameters;
+import dmodel.designtime.monitoring.controller.ThreadMonitoringController;
 import tools.descartes.teastore.registryclient.Service;
 import tools.descartes.teastore.registryclient.loadbalancers.LoadBalancerTimeoutException;
 import tools.descartes.teastore.registryclient.rest.LoadBalancedCRUDOperations;
@@ -35,6 +38,7 @@ import tools.descartes.teastore.entities.ImageSizePreset;
 import tools.descartes.teastore.entities.OrderItem;
 import tools.descartes.teastore.entities.Product;
 import tools.descartes.teastore.entities.message.SessionBlob;
+import tools.descartes.teastore.monitoring.TeastoreMonitoringMetadata;
 
 /**
  * Servlet implementation for the web view of "Product".
@@ -43,63 +47,73 @@ import tools.descartes.teastore.entities.message.SessionBlob;
  */
 @WebServlet("/product")
 public class ProductServlet extends AbstractUIServlet {
-  private static final long serialVersionUID = 1L;
+	private static final long serialVersionUID = 1L;
 
-  /**
-   * @see HttpServlet#HttpServlet()
-   */
-  public ProductServlet() {
-    super();
-  }
+	/**
+	 * @see HttpServlet#HttpServlet()
+	 */
+	public ProductServlet() {
+		super();
+	}
 
-  /**
-   * {@inheritDoc}
-   */
-  @Override
-  protected void handleGETRequest(HttpServletRequest request, HttpServletResponse response)
-      throws ServletException, IOException, LoadBalancerTimeoutException {
-    checkforCookie(request, response);
-    if (request.getParameter("id") != null) {
-      Long id = Long.valueOf(request.getParameter("id"));
-      request.setAttribute("CategoryList", LoadBalancedCRUDOperations
-          .getEntities(Service.PERSISTENCE, "categories", Category.class, -1, -1));
-      request.setAttribute("title", "TeaStore Product");
-      SessionBlob blob = getSessionBlob(request);
-      request.setAttribute("login", LoadBalancedStoreOperations.isLoggedIn(blob));
-      Product p = LoadBalancedCRUDOperations.getEntity(Service.PERSISTENCE, "products",
-          Product.class, id);
-      request.setAttribute("product", p);
+	/**
+	 * {@inheritDoc}
+	 */
+	@Override
+	protected void handleGETRequest(HttpServletRequest request, HttpServletResponse response)
+			throws ServletException, IOException, LoadBalancerTimeoutException {
+		checkforCookie(request, response);
+		if (request.getParameter("id") != null) {
+			Long id = Long.valueOf(request.getParameter("id"));
+			request.setAttribute("CategoryList",
+					LoadBalancedCRUDOperations.getEntities(Service.PERSISTENCE, "categories", Category.class, -1, -1));
+			request.setAttribute("title", "TeaStore Product");
+			SessionBlob blob = getSessionBlob(request);
+			request.setAttribute("login", LoadBalancedStoreOperations.isLoggedIn(blob));
+			Product p = LoadBalancedCRUDOperations.getEntity(Service.PERSISTENCE, "products", Product.class, id);
+			request.setAttribute("product", p);
 
-      List<OrderItem> items = new LinkedList<>();
-      OrderItem oi = new OrderItem();
-      oi.setProductId(id);
-      oi.setQuantity(1);
-      items.add(oi);
-      items.addAll(getSessionBlob(request).getOrderItems());
-      List<Long> productIds = LoadBalancedRecommenderOperations.getRecommendations(items,
-          getSessionBlob(request).getUID());
-      List<Product> ads = new LinkedList<Product>();
-      for (Long productId : productIds) {
-        ads.add(LoadBalancedCRUDOperations.getEntity(Service.PERSISTENCE, "products", Product.class,
-            productId));
-      }
+			List<OrderItem> items = new LinkedList<>();
+			OrderItem oi = new OrderItem();
+			oi.setProductId(id);
+			oi.setQuantity(1);
+			items.add(oi);
+			items.addAll(getSessionBlob(request).getOrderItems());
 
-      if (ads.size() > 3) {
-        ads.subList(3, ads.size()).clear();
-      }
-      request.setAttribute("Advertisment", ads);
+			ServiceParameters parameters = new ServiceParameters();
+			parameters.addValue("cartSize.VALUE", blob.getOrderItems().size());
+			ThreadMonitoringController.setSessionId(UUID.randomUUID().toString());
+			ThreadMonitoringController.getInstance()
+					.enterService(TeastoreMonitoringMetadata.SERVICE_WEBUI_GET_RECOMMENDATIONS, this, parameters);
+			ThreadMonitoringController.getInstance()
+					.setExternalCallId(TeastoreMonitoringMetadata.EXTERNAL_CALL_WEBUI_LOADBALANCER_GET_RECOMMENDATIONS);
+			List<Long> productIds = LoadBalancedRecommenderOperations.getRecommendations(items,
+					getSessionBlob(request).getUID());
+			ThreadMonitoringController.getInstance()
+					.exitService(TeastoreMonitoringMetadata.SERVICE_WEBUI_GET_RECOMMENDATIONS);
 
-      request.setAttribute("productImages", LoadBalancedImageOperations.getProductImages(ads,
-          ImageSizePreset.RECOMMENDATION.getSize()));
-      request.setAttribute("productImage", LoadBalancedImageOperations.getProductImage(p));
-      request.setAttribute("storeIcon",
-          LoadBalancedImageOperations.getWebImage("icon", ImageSizePreset.ICON.getSize()));
-      request.setAttribute("helper", ELHelperUtils.UTILS);
+			List<Product> ads = new LinkedList<Product>();
+			for (Long productId : productIds) {
+				ads.add(LoadBalancedCRUDOperations.getEntity(Service.PERSISTENCE, "products", Product.class,
+						productId));
+			}
 
-      request.getRequestDispatcher("WEB-INF/pages/product.jsp").forward(request, response);
-    } else {
-      redirect("/", response);
-    }
-  }
+			if (ads.size() > 3) {
+				ads.subList(3, ads.size()).clear();
+			}
+			request.setAttribute("Advertisment", ads);
+
+			request.setAttribute("productImages",
+					LoadBalancedImageOperations.getProductImages(ads, ImageSizePreset.RECOMMENDATION.getSize()));
+			request.setAttribute("productImage", LoadBalancedImageOperations.getProductImage(p));
+			request.setAttribute("storeIcon",
+					LoadBalancedImageOperations.getWebImage("icon", ImageSizePreset.ICON.getSize()));
+			request.setAttribute("helper", ELHelperUtils.UTILS);
+
+			request.getRequestDispatcher("WEB-INF/pages/product.jsp").forward(request, response);
+		} else {
+			redirect("/", response);
+		}
+	}
 
 }

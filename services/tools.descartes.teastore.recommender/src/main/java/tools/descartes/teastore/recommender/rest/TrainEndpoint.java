@@ -16,12 +16,16 @@ package tools.descartes.teastore.recommender.rest;
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Response;
 
+import dmodel.designtime.monitoring.controller.ServiceParameters;
+import dmodel.designtime.monitoring.controller.ThreadMonitoringController;
 import tools.descartes.teastore.recommender.algorithm.IRecommender;
 import tools.descartes.teastore.recommender.servlet.TrainingSynchronizer;
 import tools.descartes.teastore.entities.Order;
 import tools.descartes.teastore.entities.OrderItem;
+import tools.descartes.teastore.monitoring.TeastoreMonitoringMetadata;
 
 /**
  * REST endpoint to trigger the (re)training of the Recommender.
@@ -48,10 +52,14 @@ public class TrainEndpoint {
 	 *         if the operation failed.
 	 */
 	@GET
-	public Response train() {
+	public Response train(@QueryParam("monitoringTraceId") String monitoringTraceId,
+			@QueryParam("monitoringExternalId") String monitoringExternalId, @QueryParam("orders") long orders,
+			@QueryParam("orderItems") long orderItems) {
+		ThreadMonitoringController.getInstance().continueFromRemote(monitoringTraceId, monitoringExternalId);
+
 		try {
 			long start = System.currentTimeMillis();
-			long number = TrainingSynchronizer.getInstance().retrieveDataAndRetrain();
+			long number = TrainingSynchronizer.getInstance().retrieveDataAndRetrain(orders, orderItems);
 			long time = System.currentTimeMillis() - start;
 			if (number != -1) {
 				return Response.ok("The (re)train was succesfully done. It took " + time + "ms and " + number
@@ -60,6 +68,9 @@ public class TrainEndpoint {
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
+		
+		ThreadMonitoringController.getInstance().detachFromRemote();
+		
 		// set ready to true anyway to avoid being stuck
 		return Response.status(Response.Status.INTERNAL_SERVER_ERROR.getStatusCode())
 				.entity("The (re)trainprocess failed.").build();

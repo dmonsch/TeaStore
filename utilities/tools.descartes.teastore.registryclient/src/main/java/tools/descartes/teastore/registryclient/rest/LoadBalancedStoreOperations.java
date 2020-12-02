@@ -37,20 +37,24 @@ public final class LoadBalancedStoreOperations {
 	 * @param creditCardExpiryDate creditcard
 	 * @param creditCardNumber     creditcard
 	 * @param totalPriceInCents    totalPrice
+	 * @param noItems
+	 * @param noOrders
 	 * @throws NotFoundException            If 404 was returned.
 	 * @throws LoadBalancerTimeoutException On receiving the 408 status code and on
 	 *                                      repeated load balancer socket timeouts.
 	 * @return empty SessionBlob
 	 */
 	public static SessionBlob placeOrder(SessionBlob blob, String addressName, String address1, String address2,
-			String creditCardCompany, String creditCardExpiryDate, long totalPriceInCents, String creditCardNumber)
-			throws NotFoundException, LoadBalancerTimeoutException {
+			String creditCardCompany, String creditCardExpiryDate, long totalPriceInCents, String creditCardNumber,
+			long noOrders, long noItems) throws NotFoundException, LoadBalancerTimeoutException {
 
 		ThreadMonitoringController.getInstance().continueFromRemote(blob.getMonitoringTraceId(),
 				blob.getMonitoringExternalId());
 
 		ServiceParameters parameters = new ServiceParameters();
 		parameters.addValue("items.VALUE", blob.getOrderItems().size());
+		parameters.addValue("orders.VALUE", noOrders);
+		parameters.addValue("orderItems.VALUE", noItems);
 
 		ThreadMonitoringController.setSessionId(blob.getSID());
 		ThreadMonitoringController.getInstance().enterService(TeastoreMonitoringMetadata.SERVICE_REGISTRY_PLACE_ORDER,
@@ -64,15 +68,26 @@ public final class LoadBalancedStoreOperations {
 									.queryParam("creditCardNumber", creditCardNumber)
 									.queryParam("creditCardExpiryDate", creditCardExpiryDate)
 									.queryParam("totalPriceInCents", totalPriceInCents)
-									.queryParam("monitoringTraceId", ThreadMonitoringController.getInstance().getCurrentTraceId())
-									.queryParam("monitoringExternalId", TeastoreMonitoringMetadata.EXTERNAL_CALL_LOADBALANCER_AUTH_PLACE_ORDER)
-									)
+									.queryParam("startTime", System.currentTimeMillis())
+									.queryParam("monitoringTraceId",
+											ThreadMonitoringController.getInstance().getCurrentTraceId())
+									.queryParam("monitoringExternalId",
+											TeastoreMonitoringMetadata.EXTERNAL_CALL_LOADBALANCER_AUTH_PLACE_ORDER))
 							.post(Entity.entity(blob, MediaType.APPLICATION_JSON), Response.class)));
 
-			return RestUtil.readThrowAndOrClose(r, SessionBlob.class);
+			SessionBlob result = RestUtil.readThrowAndOrClose(r, SessionBlob.class);
+
+			return result;
 		} finally {
 			ThreadMonitoringController.getInstance()
 					.exitService(TeastoreMonitoringMetadata.SERVICE_REGISTRY_PLACE_ORDER);
+
+			// artificial retrain
+			ThreadMonitoringController.getInstance()
+					.setExternalCallId(TeastoreMonitoringMetadata.EXTERNAL_CALL_WEBUI_LOADBALANCER_TRAIN_RECOMMENDER);
+			LoadBalancedRecommenderOperations.trainRecommender(noOrders, noItems);
+			
+			ThreadMonitoringController.getInstance().detachFromRemote();
 		}
 	}
 
@@ -181,15 +196,34 @@ public final class LoadBalancedStoreOperations {
 	 */
 	public static SessionBlob updateQuantity(SessionBlob blob, long pid, int quantity)
 			throws NotFoundException, LoadBalancerTimeoutException {
+		ThreadMonitoringController.getInstance().continueFromRemote(blob.getMonitoringTraceId(),
+				blob.getMonitoringExternalId());
+
+		ThreadMonitoringController.setSessionId(blob.getSID());
+		ThreadMonitoringController.getInstance().enterService(TeastoreMonitoringMetadata.SERVICE_REGISTRY_UPDATE_ORDER,
+				LoadBalancedStoreOperations.class);
+
 		if (quantity < 1) {
 			throw new IllegalArgumentException("Quantity has to be larger than 1");
 		}
-		Response r = ServiceLoadBalancer
-				.loadBalanceRESTOperation(Service.AUTH, "cart", Product.class,
-						client -> ResponseWrapper.wrap(HttpWrapper
-								.wrap(client.getEndpointTarget().path("" + pid).queryParam("quantity", quantity))
-								.put(Entity.entity(blob, MediaType.APPLICATION_JSON), Response.class)));
-		return RestUtil.readThrowAndOrClose(r, SessionBlob.class);
+
+		try {
+			Response r = ServiceLoadBalancer.loadBalanceRESTOperation(Service.AUTH, "cart", Product.class,
+					client -> ResponseWrapper.wrap(HttpWrapper
+							.wrap(client.getEndpointTarget().path("" + pid).queryParam("quantity", quantity)
+									.queryParam("monitoringTraceId",
+											ThreadMonitoringController.getInstance().getCurrentTraceId())
+									.queryParam("startTime", System.currentTimeMillis())
+									.queryParam("monitoringExternalId",
+											TeastoreMonitoringMetadata.EXTERNAL_CALL_LOADBALANCER_AUTH_UPDATE_ORDER))
+							.put(Entity.entity(blob, MediaType.APPLICATION_JSON), Response.class)));
+
+			return RestUtil.readThrowAndOrClose(r, SessionBlob.class);
+		} finally {
+			ThreadMonitoringController.getInstance()
+					.exitService(TeastoreMonitoringMetadata.SERVICE_REGISTRY_UPDATE_ORDER);
+			ThreadMonitoringController.getInstance().detachFromRemote();
+		}
 	}
 
 }

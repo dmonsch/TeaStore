@@ -26,10 +26,12 @@ import java.util.Map.Entry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import dmodel.designtime.monitoring.controller.ThreadMonitoringController;
 import tools.descartes.teastore.entities.Order;
 import tools.descartes.teastore.entities.OrderItem;
 import tools.descartes.teastore.entities.Product;
 import tools.descartes.teastore.entities.User;
+import tools.descartes.teastore.monitoring.TeastoreMonitoringMetadata;
 
 /**
  * Abstract class for basic recommendation functionality.
@@ -69,6 +71,10 @@ public abstract class AbstractRecommender implements IRecommender {
 
 	@Override
 	public void train(List<OrderItem> orderItems, List<Order> orders) {
+		ThreadMonitoringController.getInstance().enterInternalAction(
+				TeastoreMonitoringMetadata.INTERNAL_ACTION_RECOMMENDER_PREPARE_TRAIN,
+				TeastoreMonitoringMetadata.RESOURCE_CPU);
+		
 		long tic = System.currentTimeMillis();
 		totalProducts = new HashSet<>();
 		// first create order mapping unorderized
@@ -101,7 +107,13 @@ public abstract class AbstractRecommender implements IRecommender {
 			userItemSets.get(order.getUserId()).add(itemSets.get(order));
 		}
 		userBuyingMatrix = createUserBuyingMatrix(userItemSets);
-		executePreprocessing();
+		ThreadMonitoringController.getInstance().exitInternalAction(
+				TeastoreMonitoringMetadata.INTERNAL_ACTION_RECOMMENDER_PREPARE_TRAIN,
+				TeastoreMonitoringMetadata.RESOURCE_CPU);
+		
+		ThreadMonitoringController.getInstance().setExternalCallId(TeastoreMonitoringMetadata.EXTERNAL_CALL_RECOMMENDER_STRATEGY_TRAIN);
+		executePreprocessing(orders.size(), orderItems.size());
+		
 		LOG.info("Training recommender finished. Training took: " + (System.currentTimeMillis() - tic) + "ms.");
 		trainingFinished = true;
 	}
@@ -110,7 +122,7 @@ public abstract class AbstractRecommender implements IRecommender {
 	 * Triggers implementing classes if they want to execute a pre-processing step
 	 * during {@link AbstractRecommender#train(List, List)}.
 	 */
-	protected void executePreprocessing() {
+	protected void executePreprocessing(long orders, long orderItems) {
 		// do nothing
 	}
 
@@ -137,12 +149,10 @@ public abstract class AbstractRecommender implements IRecommender {
 	 * {@link AbstractRecommender#MAX_NUMBER_OF_RECOMMENDATIONS} highest rated
 	 * recommendations.
 	 * 
-	 * @param priorityList
-	 *            The unfiltered ranking assigning each recommended product ID a
-	 *            score or an importance. Does not need to be sorted.
-	 * @param currentItems
-	 *            The list of item IDs that must NOT be contained in the returned
-	 *            list.
+	 * @param priorityList The unfiltered ranking assigning each recommended product
+	 *                     ID a score or an importance. Does not need to be sorted.
+	 * @param currentItems The list of item IDs that must NOT be contained in the
+	 *                     returned list.
 	 * @return A sorted list of recommendations with a size not greater than
 	 *         {@link AbstractRecommender#MAX_NUMBER_OF_RECOMMENDATIONS}
 	 */
@@ -182,10 +192,8 @@ public abstract class AbstractRecommender implements IRecommender {
 	 * Has to be implemented by subclasses in order to perform actual
 	 * recommendation.
 	 * 
-	 * @param userid
-	 *            The id of the {@link User} to recommend for. May be null.
-	 * @param currentItems
-	 *            A list containing all ids of {@link OrderItem}s.
+	 * @param userid       The id of the {@link User} to recommend for. May be null.
+	 * @param currentItems A list containing all ids of {@link OrderItem}s.
 	 * @return List of all IDs of the {@link Product} entities that are recommended
 	 *         to add to the cart. Does not contain any {@link Product} that is
 	 *         already part of the given list of {@link OrderItem}s. Might be empty.
@@ -209,8 +217,7 @@ public abstract class AbstractRecommender implements IRecommender {
 	}
 
 	/**
-	 * @param userBuyingMatrix
-	 *            the userBuyingMatrix to set
+	 * @param userBuyingMatrix the userBuyingMatrix to set
 	 */
 	public void setUserBuyingMatrix(Map<Long, Map<Long, Double>> userBuyingMatrix) {
 		this.userBuyingMatrix = userBuyingMatrix;
@@ -224,8 +231,7 @@ public abstract class AbstractRecommender implements IRecommender {
 	}
 
 	/**
-	 * @param totalProducts
-	 *            the totalProducts to set
+	 * @param totalProducts the totalProducts to set
 	 */
 	public void setTotalProducts(Set<Long> totalProducts) {
 		this.totalProducts = totalProducts;
@@ -239,8 +245,7 @@ public abstract class AbstractRecommender implements IRecommender {
 	}
 
 	/**
-	 * @param userItemSets
-	 *            the userItemSets to set
+	 * @param userItemSets the userItemSets to set
 	 */
 	public void setUserItemSets(Map<Long, Set<OrderItemSet>> userItemSets) {
 		this.userItemSets = userItemSets;
@@ -253,8 +258,7 @@ public abstract class AbstractRecommender implements IRecommender {
 	 * user bought one item at least once, the contained value (rating) is the
 	 * number of times, he bought one given item.
 	 * 
-	 * @param useritemsets
-	 *            A map assigning each user-ID all its OrderItemSets
+	 * @param useritemsets A map assigning each user-ID all its OrderItemSets
 	 * @return A Map representing a matrix of each user-ID assigning each item-ID
 	 *         its number of buys (as double value)
 	 */

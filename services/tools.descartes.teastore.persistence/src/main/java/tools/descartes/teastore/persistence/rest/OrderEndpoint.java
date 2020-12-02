@@ -21,13 +21,16 @@ import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.QueryParam;
 
+import dmodel.designtime.monitoring.controller.ThreadMonitoringController;
 import tools.descartes.teastore.persistence.domain.OrderRepository;
 import tools.descartes.teastore.persistence.repository.DataGenerator;
 import tools.descartes.teastore.registryclient.util.AbstractCRUDEndpoint;
 import tools.descartes.teastore.entities.Order;
+import tools.descartes.teastore.monitoring.TeastoreMonitoringMetadata;
 
 /**
  * Persistence endpoint for for CRUD operations on orders.
+ * 
  * @author Joakim von Kistowski
  *
  */
@@ -39,10 +42,29 @@ public class OrderEndpoint extends AbstractCRUDEndpoint<Order> {
 	 */
 	@Override
 	protected long createEntity(final Order order) {
-		if (DataGenerator.GENERATOR.isMaintenanceMode()) {
-			return -1L;
+		ThreadMonitoringController.getInstance().continueFromRemote(order.getMonitoringTraceId(),
+				order.getMonitoringExternalId());
+		ThreadMonitoringController.getInstance().logInternalAction(
+				TeastoreMonitoringMetadata.INTERNAL_ACTION_REGISTRY_PERSISTENCE_PERSIST_ORDER_REST,
+				TeastoreMonitoringMetadata.RESOURCE_CPU, order.getStartTime());
+
+		ThreadMonitoringController.getInstance()
+				.enterService(TeastoreMonitoringMetadata.SERVICE_PERSISTENCE_CREATE_ORDER_ENTITY, this);
+		try {
+			ThreadMonitoringController.getInstance().enterInternalAction(
+					TeastoreMonitoringMetadata.INTERNAL_ACTION_PERSIST_ORDER, TeastoreMonitoringMetadata.RESOURCE_CPU);
+			if (DataGenerator.GENERATOR.isMaintenanceMode()) {
+				return -1L;
+			}
+			return OrderRepository.REPOSITORY.createEntity(order);
+		} finally {
+			ThreadMonitoringController.getInstance().exitInternalAction(
+					TeastoreMonitoringMetadata.INTERNAL_ACTION_PERSIST_ORDER, TeastoreMonitoringMetadata.RESOURCE_CPU);
+			ThreadMonitoringController.getInstance()
+					.exitService(TeastoreMonitoringMetadata.SERVICE_PERSISTENCE_CREATE_ORDER_ENTITY);
+			
+			ThreadMonitoringController.getInstance().detachFromRemote();
 		}
-		return OrderRepository.REPOSITORY.createEntity(order);
 	}
 
 	/**
@@ -87,25 +109,27 @@ public class OrderEndpoint extends AbstractCRUDEndpoint<Order> {
 		}
 		return OrderRepository.REPOSITORY.removeEntity(id);
 	}
-	
+
 	/**
-	 * Returns all order items with the given product Id (all order items for that product).
-	 * @param userId The id of the product.
-	 * @param startPosition The index (NOT ID) of the first order item with the product to return.
-	 * @param maxResult The max number of order items to return.
+	 * Returns all order items with the given product Id (all order items for that
+	 * product).
+	 * 
+	 * @param userId        The id of the product.
+	 * @param startPosition The index (NOT ID) of the first order item with the
+	 *                      product to return.
+	 * @param maxResult     The max number of order items to return.
 	 * @return list of order items with the product.
 	 */
 	@GET
 	@Path("user/{user:[0-9][0-9]*}")
 	public List<Order> listAllForUser(@PathParam("user") final Long userId,
-			@QueryParam("start") final Integer startPosition,
-			@QueryParam("max") final Integer maxResult) {
+			@QueryParam("start") final Integer startPosition, @QueryParam("max") final Integer maxResult) {
 		if (userId == null) {
 			return listAll(startPosition, maxResult);
 		}
 		List<Order> orders = new ArrayList<Order>();
-		for (Order o : OrderRepository.REPOSITORY.getAllEntitiesWithUser(userId,
-				parseIntQueryParam(startPosition), parseIntQueryParam(maxResult))) {
+		for (Order o : OrderRepository.REPOSITORY.getAllEntitiesWithUser(userId, parseIntQueryParam(startPosition),
+				parseIntQueryParam(maxResult))) {
 			orders.add(new Order(o));
 		}
 		return orders;

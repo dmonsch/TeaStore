@@ -27,7 +27,7 @@
 		</dependency>
 		<dependency>
 			<groupId>tools.descartes.teastore</groupId>
-			<artifactId>tools.descartes.teastore.monitoring</artifactId>
+			<artifactId>monitoring</artifactId>
 			<version>${teastoreversion}</version>
 		</dependency>
 

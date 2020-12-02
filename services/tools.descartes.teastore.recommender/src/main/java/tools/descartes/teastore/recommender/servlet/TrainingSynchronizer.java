@@ -21,8 +21,10 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
@@ -30,7 +32,8 @@ import javax.ws.rs.core.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import tools.descartes.teastore.recommender.algorithm.RecommenderSelector;
+import dmodel.designtime.monitoring.controller.ServiceParameters;
+import dmodel.designtime.monitoring.controller.ThreadMonitoringController;
 import tools.descartes.teastore.registryclient.Service;
 import tools.descartes.teastore.registryclient.loadbalancers.LoadBalancerTimeoutException;
 import tools.descartes.teastore.registryclient.loadbalancers.ServiceLoadBalancer;
@@ -38,6 +41,8 @@ import tools.descartes.teastore.registryclient.rest.LoadBalancedCRUDOperations;
 import tools.descartes.teastore.registryclient.util.NotFoundException;
 import tools.descartes.teastore.entities.Order;
 import tools.descartes.teastore.entities.OrderItem;
+import tools.descartes.teastore.monitoring.TeastoreMonitoringMetadata;
+import tools.descartes.teastore.recommender.algorithm.RecommenderSelector;
 
 /**
  * This class organizes the communication with the other services and
@@ -72,8 +77,7 @@ public final class TrainingSynchronizer {
 	}
 
 	/**
-	 * @param isReady
-	 *            the isReady to set
+	 * @param isReady the isReady to set
 	 */
 	public void setReady(boolean isReady) {
 		this.isReady = isReady;
@@ -111,16 +115,14 @@ public final class TrainingSynchronizer {
 	}
 
 	/**
-	 * @param maxTime
-	 *            the maxTime to set
+	 * @param maxTime the maxTime to set
 	 */
 	public void setMaxTime(String maxTime) {
 		setMaxTime(toMillis(maxTime));
 	}
 
 	/**
-	 * @param maxTime
-	 *            the maxTime to set
+	 * @param maxTime the maxTime to set
 	 */
 	public void setMaxTime(long maxTime) {
 		this.maxTime = maxTime;
@@ -139,8 +141,8 @@ public final class TrainingSynchronizer {
 						client -> client.getService().path(client.getApplicationURI()).path(client.getEndpointURI())
 								.path("finished").request().get());
 
-								if (result != null && Boolean.parseBoolean(result.readEntity(String.class))) {
-									break;
+				if (result != null && Boolean.parseBoolean(result.readEntity(String.class))) {
+					break;
 				}
 			} catch (NullPointerException | NotFoundException | LoadBalancerTimeoutException e) {
 				// continue waiting as usual
@@ -171,15 +173,29 @@ public final class TrainingSynchronizer {
 	 * @return The number of elements retrieved from the database or -1 if the
 	 *         process failed.
 	 */
-	public long retrieveDataAndRetrain() {
+	public long retrieveDataAndRetrain(long nOrders, long nItems) {
 		setReady(false);
 		LOG.trace("Retrieving data objects from database...");
 
+		ServiceParameters parameters = new ServiceParameters();
+		parameters.addValue("orders.VALUE", nOrders);
+		parameters.addValue("orderItems.VALUE", nItems);
+
+		ThreadMonitoringController.getInstance()
+				.enterService(TeastoreMonitoringMetadata.SERVICE_RECOMMENDER_TRAIN_RECOMMENDER, this, parameters);
+
+		ThreadMonitoringController.getInstance().enterInternalAction(
+				TeastoreMonitoringMetadata.INTERNAL_ACTION_RECOMMENDER_TRAIN_GET_ORDERS,
+				TeastoreMonitoringMetadata.RESOURCE_CPU);
+		
+		long wait = System.currentTimeMillis();
 		waitForPersistence();
+		LOG.info("Waiting for persistence needed " + (System.currentTimeMillis() - wait) + "ms.");
 
 		List<OrderItem> items = null;
 		List<Order> orders = null;
 		// retrieve
+		wait = System.currentTimeMillis();
 		try {
 			items = LoadBalancedCRUDOperations.getEntities(Service.PERSISTENCE, "orderitems", OrderItem.class, -1, -1);
 			long noItems = items.size();
@@ -190,6 +206,8 @@ public final class TrainingSynchronizer {
 			LOG.error("Database retrieving failed.");
 			return -1;
 		}
+		LOG.info("Getting items needed " + (System.currentTimeMillis() - wait) + "ms.");
+		wait = System.currentTimeMillis();
 		try {
 			orders = LoadBalancedCRUDOperations.getEntities(Service.PERSISTENCE, "orders", Order.class, -1, -1);
 			long noOrders = orders.size();
@@ -200,21 +218,40 @@ public final class TrainingSynchronizer {
 			LOG.error("Database retrieving failed.");
 			return -1;
 		}
+		LOG.info("Getting orders needed " + (System.currentTimeMillis() - wait) + "ms.");
+		
+		wait = System.currentTimeMillis();
 		// filter lists
 		filterLists(items, orders);
+		LOG.info("Filtering lists needed  " + (System.currentTimeMillis() - wait) + "ms.");
+
+		ThreadMonitoringController.getInstance().exitInternalAction(
+				TeastoreMonitoringMetadata.INTERNAL_ACTION_RECOMMENDER_TRAIN_GET_ORDERS,
+				TeastoreMonitoringMetadata.RESOURCE_CPU);
+
 		// train instance
 		RecommenderSelector.getInstance().train(items, orders);
 		LOG.trace("Finished training, ready for recommendation.");
 		setReady(true);
+
+		ThreadMonitoringController.getInstance()
+				.exitService(TeastoreMonitoringMetadata.SERVICE_RECOMMENDER_TRAIN_RECOMMENDER);
+
 		return items.size() + orders.size();
 	}
 
 	private void filterLists(List<OrderItem> orderItems, List<Order> orders) {
+		LOG.info("Orders size: " + orders.size());
+		LOG.info("Order items size: " + orderItems.size());
 		// since we are not registered ourselves, we can multicast to all services
+		long wait = System.currentTimeMillis();
 		List<Response> maxTimeResponses = ServiceLoadBalancer.multicastRESTOperation(Service.RECOMMENDER,
 				"train/timestamp", Response.class,
 				client -> client.getService().path(client.getApplicationURI()).path(client.getEndpointURI())
 						.request(MediaType.TEXT_PLAIN).accept(MediaType.TEXT_PLAIN).get());
+		LOG.info("Getting max time responses needed " + (System.currentTimeMillis() - wait) + "ms.");
+		
+		wait = System.currentTimeMillis();
 		for (Response response : maxTimeResponses) {
 			if (response == null) {
 				LOG.warn("One service response was null and is therefore not available for time-check.");
@@ -232,6 +269,9 @@ public final class TrainingSynchronizer {
 				LOG.warn("Service " + response + "was not available for time-check.");
 			}
 		}
+		LOG.info("Processing responses needed " + (System.currentTimeMillis() - wait) + "ms.");
+		
+		wait = System.currentTimeMillis();
 		if (maxTime == Long.MIN_VALUE) {
 			// we are the only known service
 			// therefore we find max and set it
@@ -239,11 +279,13 @@ public final class TrainingSynchronizer {
 				maxTime = Math.max(maxTime, toMillis(or.getTime()));
 			}
 		}
-		filterForMaxtimeStamp(orderItems, orders);
+		// filterForMaxtimeStamp(orderItems, orders);
+		LOG.info("Timestamp filtering needed " + (System.currentTimeMillis() - wait) + "ms.");
 	}
 
 	private void filterForMaxtimeStamp(List<OrderItem> orderItems, List<Order> orders) {
 		// filter orderItems and orders and ignore newer entries.
+		long wait = System.currentTimeMillis();
 		List<Order> remove = new ArrayList<>();
 		for (Order or : orders) {
 			if (toMillis(or.getTime()) > maxTime) {
@@ -251,20 +293,23 @@ public final class TrainingSynchronizer {
 			}
 		}
 		orders.removeAll(remove);
-
+		LOG.info("Order filtering needed " + (System.currentTimeMillis() - wait) + "ms.");
+		
+		Set<Long> containedOrders = new HashSet<Long>();
+		for (Order or : orders) {
+			containedOrders.add(or.getId());
+		}
+		
+		wait = System.currentTimeMillis();
 		List<OrderItem> removeItems = new ArrayList<>();
 		for (OrderItem orderItem : orderItems) {
-			boolean contained = false;
-			for (Order or : orders) {
-				if (or.getId() == orderItem.getOrderId()) {
-					contained = true;
-				}
-			}
+			boolean contained = containedOrders.contains(orderItem.getOrderId());
 			if (!contained) {
 				removeItems.add(orderItem);
 			}
 		}
 		orderItems.removeAll(removeItems);
+		LOG.info("Items filtering needed " + (System.currentTimeMillis() - wait) + "ms.");
 	}
 
 	private long toMillis(String date) {

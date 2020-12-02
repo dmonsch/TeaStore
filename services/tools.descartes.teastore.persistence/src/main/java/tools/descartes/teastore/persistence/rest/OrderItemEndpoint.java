@@ -21,13 +21,16 @@ import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.QueryParam;
 
+import dmodel.designtime.monitoring.controller.ThreadMonitoringController;
 import tools.descartes.teastore.persistence.domain.OrderItemRepository;
 import tools.descartes.teastore.persistence.repository.DataGenerator;
 import tools.descartes.teastore.registryclient.util.AbstractCRUDEndpoint;
 import tools.descartes.teastore.entities.OrderItem;
+import tools.descartes.teastore.monitoring.TeastoreMonitoringMetadata;
 
 /**
  * Persistence endpoint for for CRUD operations on orders.
+ * 
  * @author Joakim von Kistowski
  *
  */
@@ -39,10 +42,31 @@ public class OrderItemEndpoint extends AbstractCRUDEndpoint<OrderItem> {
 	 */
 	@Override
 	protected long createEntity(final OrderItem orderItem) {
-		if (DataGenerator.GENERATOR.isMaintenanceMode()) {
-			return -1L;
+		ThreadMonitoringController.getInstance().continueFromRemote(orderItem.getMonitoringTraceId(),
+				orderItem.getMonitoringExternalId());
+		ThreadMonitoringController.getInstance().logInternalAction(
+				TeastoreMonitoringMetadata.INTERNAL_ACTION_REGISTRY_PERSISTENCE_PERSIST_ORDER_REST,
+				TeastoreMonitoringMetadata.RESOURCE_CPU, orderItem.getStartTime());
+
+		ThreadMonitoringController.getInstance()
+				.enterService(TeastoreMonitoringMetadata.SERVICE_PERSISTENCE_CREATE_ORDER_ITEM_ENTITY, this);
+		try {
+			ThreadMonitoringController.getInstance().enterInternalAction(
+					TeastoreMonitoringMetadata.INTERNAL_ACTION_PERSIST_ORDER_ITEM,
+					TeastoreMonitoringMetadata.RESOURCE_CPU);
+			if (DataGenerator.GENERATOR.isMaintenanceMode()) {
+				return -1L;
+			}
+			return OrderItemRepository.REPOSITORY.createEntity(orderItem);
+		} finally {
+			ThreadMonitoringController.getInstance().exitInternalAction(
+					TeastoreMonitoringMetadata.INTERNAL_ACTION_PERSIST_ORDER_ITEM,
+					TeastoreMonitoringMetadata.RESOURCE_CPU);
+			ThreadMonitoringController.getInstance()
+					.exitService(TeastoreMonitoringMetadata.SERVICE_PERSISTENCE_CREATE_ORDER_ITEM_ENTITY);
+			
+			ThreadMonitoringController.getInstance().detachFromRemote();
 		}
-		return OrderItemRepository.REPOSITORY.createEntity(orderItem);
 	}
 
 	/**
@@ -87,19 +111,21 @@ public class OrderItemEndpoint extends AbstractCRUDEndpoint<OrderItem> {
 		}
 		return OrderItemRepository.REPOSITORY.removeEntity(id);
 	}
-	
+
 	/**
-	 * Returns all order items with the given product Id (all order items for that product).
-	 * @param productId The id of the product.
-	 * @param startPosition The index (NOT ID) of the first order item with the product to return.
-	 * @param maxResult The max number of order items to return.
+	 * Returns all order items with the given product Id (all order items for that
+	 * product).
+	 * 
+	 * @param productId     The id of the product.
+	 * @param startPosition The index (NOT ID) of the first order item with the
+	 *                      product to return.
+	 * @param maxResult     The max number of order items to return.
 	 * @return list of order items with the product.
 	 */
 	@GET
 	@Path("product/{product:[0-9][0-9]*}")
 	public List<OrderItem> listAllForProduct(@PathParam("product") final Long productId,
-			@QueryParam("start") final Integer startPosition,
-			@QueryParam("max") final Integer maxResult) {
+			@QueryParam("start") final Integer startPosition, @QueryParam("max") final Integer maxResult) {
 		if (productId == null) {
 			return listAll(startPosition, maxResult);
 		}
@@ -110,19 +136,21 @@ public class OrderItemEndpoint extends AbstractCRUDEndpoint<OrderItem> {
 		}
 		return orderItems;
 	}
-	
+
 	/**
-	 * Returns all order items with the given order Id (all order items for that order).
-	 * @param orderId The id of the product.
-	 * @param startPosition The index (NOT ID) of the first order item with the product to return.
-	 * @param maxResult The max number of order items to return.
+	 * Returns all order items with the given order Id (all order items for that
+	 * order).
+	 * 
+	 * @param orderId       The id of the product.
+	 * @param startPosition The index (NOT ID) of the first order item with the
+	 *                      product to return.
+	 * @param maxResult     The max number of order items to return.
 	 * @return list of order items with the product.
 	 */
 	@GET
 	@Path("order/{order:[0-9][0-9]*}")
 	public List<OrderItem> listAllForOrder(@PathParam("order") final Long orderId,
-			@QueryParam("start") final Integer startPosition,
-			@QueryParam("max") final Integer maxResult) {
+			@QueryParam("start") final Integer startPosition, @QueryParam("max") final Integer maxResult) {
 		if (orderId == null) {
 			return listAll(startPosition, maxResult);
 		}

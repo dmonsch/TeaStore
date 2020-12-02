@@ -18,6 +18,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import dmodel.designtime.monitoring.controller.ServiceParameters;
+import dmodel.designtime.monitoring.controller.ThreadMonitoringController;
+import tools.descartes.teastore.monitoring.TeastoreMonitoringMetadata;
 import tools.descartes.teastore.recommender.algorithm.AbstractRecommender;
 
 /**
@@ -36,17 +39,37 @@ public class PopularityBasedRecommender extends AbstractRecommender {
 	/*
 	 * (non-Javadoc)
 	 * 
-	 * @see
-	 * tools.descartes.teastore.recommender.algorithm.AbstractRecommender#
+	 * @see tools.descartes.teastore.recommender.algorithm.AbstractRecommender#
 	 * execute( java.util.List)
 	 */
 	@Override
 	protected List<Long> execute(Long userid, List<Long> currentItems) {
-		return filterRecommendations(counts, currentItems);
+		ServiceParameters parameters = new ServiceParameters();
+		parameters.addValue("items.VALUE", currentItems.size());
+		ThreadMonitoringController.getInstance()
+				.enterService(TeastoreMonitoringMetadata.SERVICE_RECOMMENDER_POPULARITY_RECOMMEND, this, parameters);
+		ThreadMonitoringController.getInstance().enterInternalAction(
+				TeastoreMonitoringMetadata.INTERNAL_ACTION_RECOMMENDER_POPULARITY_RECOMMEND,
+				TeastoreMonitoringMetadata.RESOURCE_CPU);
+
+		try {
+			return filterRecommendations(counts, currentItems);
+		} finally {
+			ThreadMonitoringController.getInstance().exitInternalAction(
+					TeastoreMonitoringMetadata.INTERNAL_ACTION_RECOMMENDER_POPULARITY_RECOMMEND,
+					TeastoreMonitoringMetadata.RESOURCE_CPU);
+			ThreadMonitoringController.getInstance()
+					.exitService(TeastoreMonitoringMetadata.SERVICE_RECOMMENDER_POPULARITY_RECOMMEND);
+		}
 	}
 
 	@Override
-	protected void executePreprocessing() {
+	protected void executePreprocessing(long orders, long orderItems) {
+		ServiceParameters parameters = new ServiceParameters();
+		parameters.addValue("orders.VALUE", orders);
+		parameters.addValue("orderItems.VALUE", orderItems);
+		
+		ThreadMonitoringController.getInstance().enterService(TeastoreMonitoringMetadata.SERVICE_RECOMMENDER_POPULARITY_TRAIN, this);
 		// assigns each product a quantity
 		counts = new HashMap<>();
 		// calculate product frequencies
@@ -59,6 +82,8 @@ public class PopularityBasedRecommender extends AbstractRecommender {
 				}
 			}
 		}
+		
+		ThreadMonitoringController.getInstance().exitService(TeastoreMonitoringMetadata.SERVICE_RECOMMENDER_POPULARITY_TRAIN);
 
 	}
 }

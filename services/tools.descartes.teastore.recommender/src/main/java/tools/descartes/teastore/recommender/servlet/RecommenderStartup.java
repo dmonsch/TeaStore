@@ -71,7 +71,7 @@ public class RecommenderStartup implements ServletContextListener {
 		RESTClient.setGlobalReadTimeout(REST_READ_TIMOUT);
 		ServiceLoadBalancer.preInitializeServiceLoadBalancers(Service.PERSISTENCE);
 		RegistryClient.getClient().runAfterServiceIsAvailable(Service.PERSISTENCE, () -> {
-			TrainingSynchronizer.getInstance().retrieveDataAndRetrain();
+			TrainingSynchronizer.getInstance().retrieveDataAndRetrain(0, 0);
 			RegistryClient.getClient().register(event.getServletContext().getContextPath());
 		}, Service.RECOMMENDER);
 		try {

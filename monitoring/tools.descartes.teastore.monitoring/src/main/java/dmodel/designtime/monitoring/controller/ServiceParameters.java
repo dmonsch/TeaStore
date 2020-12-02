@@ -36,6 +36,9 @@ public class ServiceParameters {
 	 */
 	@Override
 	public String toString() {
+		if (this.stringBuilder.length() > 0) {
+			this.stringBuilder.setLength(this.stringBuilder.length() - 1);
+		}
 		return "{" + this.stringBuilder.toString() + "}";
 	}
 }

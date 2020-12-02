@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.UUID;
 
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
@@ -26,6 +27,8 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import dmodel.designtime.monitoring.controller.ServiceParameters;
+import dmodel.designtime.monitoring.controller.ThreadMonitoringController;
 import tools.descartes.teastore.registryclient.Service;
 import tools.descartes.teastore.registryclient.loadbalancers.LoadBalancerTimeoutException;
 import tools.descartes.teastore.registryclient.rest.LoadBalancedCRUDOperations;
@@ -37,6 +40,7 @@ import tools.descartes.teastore.entities.ImageSizePreset;
 import tools.descartes.teastore.entities.OrderItem;
 import tools.descartes.teastore.entities.Product;
 import tools.descartes.teastore.entities.message.SessionBlob;
+import tools.descartes.teastore.monitoring.TeastoreMonitoringMetadata;
 
 /**
  * Servlet implementation for the web view of "Cart".
@@ -45,63 +49,73 @@ import tools.descartes.teastore.entities.message.SessionBlob;
  */
 @WebServlet("/cart")
 public class CartServlet extends AbstractUIServlet {
-  private static final long serialVersionUID = 1L;
+	private static final long serialVersionUID = 1L;
 
-  /**
-   * @see HttpServlet#HttpServlet()
-   */
-  public CartServlet() {
-    super();
-  }
+	/**
+	 * @see HttpServlet#HttpServlet()
+	 */
+	public CartServlet() {
+		super();
+	}
 
-  /**
-   * {@inheritDoc}
-   */
-  @Override
-  protected void handleGETRequest(HttpServletRequest request, HttpServletResponse response)
-      throws ServletException, IOException, LoadBalancerTimeoutException {
-    checkforCookie(request, response);
-    SessionBlob blob = getSessionBlob(request);
+	/**
+	 * {@inheritDoc}
+	 */
+	@Override
+	protected void handleGETRequest(HttpServletRequest request, HttpServletResponse response)
+			throws ServletException, IOException, LoadBalancerTimeoutException {
+		checkforCookie(request, response);
+		SessionBlob blob = getSessionBlob(request);
 
-    List<OrderItem> orderItems = blob.getOrderItems();
-    ArrayList<Long> ids = new ArrayList<Long>();
-    for (OrderItem orderItem : orderItems) {
-      ids.add(orderItem.getProductId());
-    }
+		List<OrderItem> orderItems = blob.getOrderItems();
+		ArrayList<Long> ids = new ArrayList<Long>();
+		for (OrderItem orderItem : orderItems) {
+			ids.add(orderItem.getProductId());
+		}
 
-    HashMap<Long, Product> products = new HashMap<Long, Product>();
-    for (Long id : ids) {
-      Product product = LoadBalancedCRUDOperations.getEntity(Service.PERSISTENCE, "products",
-          Product.class, id);
-      products.put(product.getId(), product);
-    }
+		HashMap<Long, Product> products = new HashMap<Long, Product>();
+		for (Long id : ids) {
+			Product product = LoadBalancedCRUDOperations.getEntity(Service.PERSISTENCE, "products", Product.class, id);
+			products.put(product.getId(), product);
+		}
 
-    request.setAttribute("storeIcon",
-        LoadBalancedImageOperations.getWebImage("icon", ImageSizePreset.ICON.getSize()));
-    request.setAttribute("title", "TeaStore Cart");
-    request.setAttribute("CategoryList", LoadBalancedCRUDOperations.getEntities(Service.PERSISTENCE,
-        "categories", Category.class, -1, -1));
-    request.setAttribute("OrderItems", orderItems);
-    request.setAttribute("Products", products);
-    request.setAttribute("login", LoadBalancedStoreOperations.isLoggedIn(getSessionBlob(request)));
+		request.setAttribute("storeIcon",
+				LoadBalancedImageOperations.getWebImage("icon", ImageSizePreset.ICON.getSize()));
+		request.setAttribute("title", "TeaStore Cart");
+		request.setAttribute("CategoryList",
+				LoadBalancedCRUDOperations.getEntities(Service.PERSISTENCE, "categories", Category.class, -1, -1));
+		request.setAttribute("OrderItems", orderItems);
+		request.setAttribute("Products", products);
+		request.setAttribute("login", LoadBalancedStoreOperations.isLoggedIn(getSessionBlob(request)));
 
-    List<Long> productIds = LoadBalancedRecommenderOperations
-        .getRecommendations(blob.getOrderItems(), blob.getUID());
-    List<Product> ads = new LinkedList<Product>();
-    for (Long productId : productIds) {
-      ads.add(LoadBalancedCRUDOperations.getEntity(Service.PERSISTENCE, "products", Product.class,
-          productId));
-    }
+		ServiceParameters parameters = new ServiceParameters();
+		parameters.addValue("cartSize.VALUE", blob.getOrderItems().size());
+		ThreadMonitoringController.setSessionId(UUID.randomUUID().toString());
+		ThreadMonitoringController.getInstance()
+				.enterService(TeastoreMonitoringMetadata.SERVICE_WEBUI_GET_RECOMMENDATIONS, this, parameters);
 
-    if (ads.size() > 3) {
-      ads.subList(3, ads.size()).clear();
-    }
-    request.setAttribute("Advertisment", ads);
+		ThreadMonitoringController.getInstance()
+				.setExternalCallId(TeastoreMonitoringMetadata.EXTERNAL_CALL_WEBUI_LOADBALANCER_GET_RECOMMENDATIONS);
+		List<Long> productIds = LoadBalancedRecommenderOperations.getRecommendations(blob.getOrderItems(),
+				blob.getUID());
 
-    request.setAttribute("productImages", LoadBalancedImageOperations.getProductPreviewImages(ads));
+		ThreadMonitoringController.getInstance()
+				.exitService(TeastoreMonitoringMetadata.SERVICE_WEBUI_GET_RECOMMENDATIONS);
 
-    request.getRequestDispatcher("WEB-INF/pages/cart.jsp").forward(request, response);
+		List<Product> ads = new LinkedList<Product>();
+		for (Long productId : productIds) {
+			ads.add(LoadBalancedCRUDOperations.getEntity(Service.PERSISTENCE, "products", Product.class, productId));
+		}
 
-  }
+		if (ads.size() > 3) {
+			ads.subList(3, ads.size()).clear();
+		}
+		request.setAttribute("Advertisment", ads);
+
+		request.setAttribute("productImages", LoadBalancedImageOperations.getProductPreviewImages(ads));
+
+		request.getRequestDispatcher("WEB-INF/pages/cart.jsp").forward(request, response);
+
+	}
 
 }

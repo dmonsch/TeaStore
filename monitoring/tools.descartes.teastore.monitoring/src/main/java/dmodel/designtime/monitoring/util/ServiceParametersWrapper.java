@@ -24,7 +24,6 @@ public class ServiceParametersWrapper {
 
 	static {
 		mapper = new ObjectMapper();
-		mapper.enable(JsonParser.Feature.ALLOW_TRAILING_COMMA);
 	}
 
 	private final SortedMap<String, Object> parameters;

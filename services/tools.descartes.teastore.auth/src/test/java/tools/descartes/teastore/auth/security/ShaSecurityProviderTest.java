@@ -21,6 +21,7 @@ public class ShaSecurityProviderTest {
   public void test() {
     ShaSecurityProvider provider = new ShaSecurityProvider();
     SessionBlob blob = new SessionBlob();
+    
     blob.setSID("1234");
     blob.setUID(123456L);
     Assert.assertTrue(provider.validate(blob) == null);

@@ -6,8 +6,11 @@
 		<groupId>tools.descartes.teastore</groupId>
 		<artifactId>parent</artifactId>
 		<version>${teastoreversion}</version>
+		<relativePath>../..</relativePath>
 	</parent>
-	<artifactId>tools.descartes.teastore.monitoring</artifactId>
+	<artifactId>monitoring</artifactId>
+	<name>TeaStore Monitoring (dModel)</name>
+	<packaging>jar</packaging>
 
 	<properties>
 		<maven.compiler.source>1.8</maven.compiler.source>
@@ -30,9 +33,9 @@
 			<version>1.13</version>
 		</dependency>
 		<dependency>
-			<groupId>com.fasterxml.jackson.core</groupId>
-			<artifactId>jackson-databind</artifactId>
-			<version>2.11.0</version>
+			<groupId>org.glassfish.jersey.media</groupId>
+			<artifactId>jersey-media-json-jackson</artifactId>
+			<version>2.25.1</version>
 		</dependency>
 		<dependency>
 			<groupId>org.hyperic</groupId>

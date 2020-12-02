@@ -71,11 +71,19 @@ public class AuthUserActionsRest {
 			@QueryParam("creditCardNumber") String creditCardNumber,
 			@QueryParam("creditCardExpiryDate") String creditCardExpiryDate,
 			@QueryParam("monitoringTraceId") String monitoringTraceId,
-			@QueryParam("monitoringExternalId") String monitoringExternalId) {
+			@QueryParam("monitoringExternalId") String monitoringExternalId,
+			@QueryParam("startTime") long startTime) {
+		
+		ThreadMonitoringController.getInstance().continueFromRemote(monitoringTraceId, monitoringExternalId);
+		ThreadMonitoringController.getInstance().logInternalAction(
+				TeastoreMonitoringMetadata.INTERNAL_ACTION_REGISTRY_AUTH_UPDATE_ORDER_REST,
+				TeastoreMonitoringMetadata.RESOURCE_CPU, startTime);
+		
+		// fix for session modification
+		new ShaSecurityProvider().secure(blob);
 		if (new ShaSecurityProvider().validate(blob) == null || blob.getOrderItems().isEmpty()) {
 			return Response.status(Response.Status.NOT_FOUND).build();
 		}
-		ThreadMonitoringController.getInstance().continueFromRemote(monitoringTraceId, monitoringExternalId);
 		ThreadMonitoringController.setSessionId(blob.getSID());
 
 		ServiceParameters parameters = new ServiceParameters();
@@ -102,6 +110,7 @@ public class AuthUserActionsRest {
 
 			long orderId;
 			try {
+				ThreadMonitoringController.getInstance().setExternalCallId(TeastoreMonitoringMetadata.EXTERNAL_CALL_AUTH_LOADBALANCER_PERSIST_ORDER);
 				orderId = LoadBalancedCRUDOperations.sendEntityForCreation(Service.PERSISTENCE, "orders", Order.class,
 						blob.getOrder());
 			} catch (LoadBalancerTimeoutException e) {
@@ -109,9 +118,13 @@ public class AuthUserActionsRest {
 			} catch (NotFoundException e) {
 				return Response.status(404).build();
 			}
+			
+			long its = 0;
 			for (OrderItem item : blob.getOrderItems()) {
+				its++;
 				try {
 					item.setOrderId(orderId);
+					ThreadMonitoringController.getInstance().setExternalCallId(TeastoreMonitoringMetadata.EXTERNAL_CALL_AUTH_LOADBALANCER_PERSIST_ORDER_ITEM);
 					LoadBalancedCRUDOperations.sendEntityForCreation(Service.PERSISTENCE, "orderitems", OrderItem.class,
 							item);
 				} catch (TimeoutException e) {
@@ -120,6 +133,7 @@ public class AuthUserActionsRest {
 					return Response.status(404).build();
 				}
 			}
+			ThreadMonitoringController.getInstance().exitLoop(TeastoreMonitoringMetadata.LOOP_ORDER_ITEMS, its);
 
 			ThreadMonitoringController.getInstance().enterInternalAction(
 					TeastoreMonitoringMetadata.INTERNAL_ACTION_FINALIZE_ORDER, TeastoreMonitoringMetadata.RESOURCE_CPU);
@@ -132,6 +146,7 @@ public class AuthUserActionsRest {
 			return Response.status(Response.Status.OK).entity(blob).build();
 		} finally {
 			ThreadMonitoringController.getInstance().exitService(TeastoreMonitoringMetadata.SERVICE_AUTH_PLACE_ORDER);
+			ThreadMonitoringController.getInstance().detachFromRemote();
 		}
 	}
 

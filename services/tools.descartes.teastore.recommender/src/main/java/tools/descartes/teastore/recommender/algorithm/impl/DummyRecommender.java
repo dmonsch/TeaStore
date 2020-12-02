@@ -16,6 +16,8 @@ package tools.descartes.teastore.recommender.algorithm.impl;
 import java.util.ArrayList;
 import java.util.List;
 
+import dmodel.designtime.monitoring.controller.ThreadMonitoringController;
+import tools.descartes.teastore.monitoring.TeastoreMonitoringMetadata;
 import tools.descartes.teastore.recommender.algorithm.AbstractRecommender;
 
 /**
@@ -25,14 +27,31 @@ import tools.descartes.teastore.recommender.algorithm.AbstractRecommender;
  *
  */
 public class DummyRecommender extends AbstractRecommender {
-	
-	/* (non-Javadoc)
-	 * @see tools.descartes.teastore.recommender.algorithm.AbstractRecommender#execute(java.util.List)
+
+	/*
+	 * (non-Javadoc)
+	 * 
+	 * @see
+	 * tools.descartes.teastore.recommender.algorithm.AbstractRecommender#execute(
+	 * java.util.List)
 	 */
 	@Override
 	protected List<Long> execute(Long userid, List<Long> currentItems) {
+		ThreadMonitoringController.getInstance()
+				.enterService(TeastoreMonitoringMetadata.SERVICE_RECOMMENDER_DUMMY_RECOMMEND, this);
+		ThreadMonitoringController.getInstance().enterInternalAction(
+				TeastoreMonitoringMetadata.INTERNAL_ACTION_RECOMMENDER_DUMMY_RECOMMEND,
+				TeastoreMonitoringMetadata.RESOURCE_CPU);
+
 		List<Long> recommended = new ArrayList<Long>();
 		recommended.add(-1L);
+		
+		ThreadMonitoringController.getInstance().exitInternalAction(
+				TeastoreMonitoringMetadata.INTERNAL_ACTION_RECOMMENDER_DUMMY_RECOMMEND,
+				TeastoreMonitoringMetadata.RESOURCE_CPU);
+		
+		ThreadMonitoringController.getInstance()
+				.exitService(TeastoreMonitoringMetadata.SERVICE_RECOMMENDER_DUMMY_RECOMMEND);
 		return recommended;
 	}
 

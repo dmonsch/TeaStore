@@ -16,6 +16,10 @@ package tools.descartes.teastore.registryclient.rest;
 import java.util.List;
 import java.util.Optional;
 
+import dmodel.designtime.monitoring.controller.ThreadMonitoringController;
+import tools.descartes.teastore.entities.Order;
+import tools.descartes.teastore.entities.OrderItem;
+import tools.descartes.teastore.monitoring.TeastoreMonitoringMetadata;
 import tools.descartes.teastore.registryclient.Service;
 import tools.descartes.teastore.registryclient.loadbalancers.LoadBalancerTimeoutException;
 import tools.descartes.teastore.registryclient.loadbalancers.ServiceLoadBalancer;
@@ -37,30 +41,56 @@ public final class LoadBalancedCRUDOperations {
 	/**
 	 * Sends an Entity to be created "as new" by the receiving service.
 	 * 
-	 * @param entity
-	 *            The new entity to create. ID may remain unset, it will be ignored
-	 *            by target service.
-	 * @param service
-	 *            The service to load balance.
-	 * @param endpointURI
-	 *            The endpoint URI (e.g., "products").
-	 * @param entityClass
-	 *            The class of entities to send/receive.
-	 * @param <T>
-	 *            Type of entity to handle.
-	 * @throws NotFoundException
-	 *             If 404 was returned.
-	 * @throws LoadBalancerTimeoutException
-	 *             On receiving the 408 status code and on repeated load balancer
-	 *             socket timeouts.
+	 * @param entity      The new entity to create. ID may remain unset, it will be
+	 *                    ignored by target service.
+	 * @param service     The service to load balance.
+	 * @param endpointURI The endpoint URI (e.g., "products").
+	 * @param entityClass The class of entities to send/receive.
+	 * @param <T>         Type of entity to handle.
+	 * @throws NotFoundException            If 404 was returned.
+	 * @throws LoadBalancerTimeoutException On receiving the 408 status code and on
+	 *                                      repeated load balancer socket timeouts.
 	 * @return The new ID of the created entity. Target service creates a new ID,
 	 *         any passed ID is ignored. Returns -1L if creation failed. Returns 0
 	 *         if creation worked, but ID remains unkown.
 	 */
 	public static <T> long sendEntityForCreation(Service service, String endpointURI, Class<T> entityClass, T entity)
 			throws NotFoundException, LoadBalancerTimeoutException {
-		return Optional.ofNullable(ServiceLoadBalancer.loadBalanceRESTOperation(service, endpointURI, entityClass,
-				client -> NonBalancedCRUDOperations.sendEntityForCreation(client, entity))).orElse(-1L);
+
+		if (entityClass == Order.class) {
+			ThreadMonitoringController.getInstance().enterService(
+					TeastoreMonitoringMetadata.SERVICE_REGISTRY_PERSIST_ORDER, LoadBalancedCRUDOperations.class);
+
+			// set external
+			Order order = (Order) entity;
+			order.setMonitoringTraceId(ThreadMonitoringController.getInstance().getCurrentTraceId());
+			order.setMonitoringExternalId(
+					TeastoreMonitoringMetadata.EXTERNAL_CALL_LOADBALANCER_PERSISTENCE_PERSIST_ORDER);
+			order.setStartTime(System.currentTimeMillis());
+		} else if (entityClass == OrderItem.class) {
+			ThreadMonitoringController.getInstance().enterService(
+					TeastoreMonitoringMetadata.SERVICE_REGISTRY_PERSIST_ORDER_ITEM, LoadBalancedCRUDOperations.class);
+
+			// set external
+			OrderItem item = (OrderItem) entity;
+			item.setMonitoringTraceId(ThreadMonitoringController.getInstance().getCurrentTraceId());
+			item.setMonitoringExternalId(
+					TeastoreMonitoringMetadata.EXTERNAL_CALL_LOADBALANCER_PERSISTENCE_PERSIST_ORDER_ITEM);
+			item.setStartTime(System.currentTimeMillis());
+		}
+
+		try {
+			return Optional.ofNullable(ServiceLoadBalancer.loadBalanceRESTOperation(service, endpointURI, entityClass,
+					client -> NonBalancedCRUDOperations.sendEntityForCreation(client, entity))).orElse(-1L);
+		} finally {
+			if (entityClass == Order.class) {
+				ThreadMonitoringController.getInstance()
+						.exitService(TeastoreMonitoringMetadata.SERVICE_REGISTRY_PERSIST_ORDER);
+			} else if (entityClass == OrderItem.class) {
+				ThreadMonitoringController.getInstance()
+						.exitService(TeastoreMonitoringMetadata.SERVICE_REGISTRY_PERSIST_ORDER_ITEM);
+			}
+		}
 	}
 
 	/**
@@ -68,24 +98,16 @@ public final class LoadBalancedCRUDOperations {
 	 * that not all values may be used by the receiving service. The values used
 	 * depend on which changes are allowed in the domain model.
 	 * 
-	 * @param id
-	 *            The id of the entity to update. Ids stored within the entity are
-	 *            ignored.
-	 * @param entity
-	 *            The entity to be updated. Entity is matched using its ID.
-	 * @param service
-	 *            The service to load balance.
-	 * @param endpointURI
-	 *            The endpoint URI (e.g., "products").
-	 * @param entityClass
-	 *            The class of entities to send/receive.
-	 * @param <T>
-	 *            Type of entity to handle.
-	 * @throws NotFoundException
-	 *             If 404 was returned.
-	 * @throws LoadBalancerTimeoutException
-	 *             On receiving the 408 status code and on repeated load balancer
-	 *             socket timeouts.
+	 * @param id          The id of the entity to update. Ids stored within the
+	 *                    entity are ignored.
+	 * @param entity      The entity to be updated. Entity is matched using its ID.
+	 * @param service     The service to load balance.
+	 * @param endpointURI The endpoint URI (e.g., "products").
+	 * @param entityClass The class of entities to send/receive.
+	 * @param <T>         Type of entity to handle.
+	 * @throws NotFoundException            If 404 was returned.
+	 * @throws LoadBalancerTimeoutException On receiving the 408 status code and on
+	 *                                      repeated load balancer socket timeouts.
 	 * @return True, if update succeeded. False, otherwise.
 	 */
 	public static <T> boolean sendEntityForUpdate(Service service, String endpointURI, Class<T> entityClass, long id,
@@ -97,21 +119,14 @@ public final class LoadBalancedCRUDOperations {
 	/**
 	 * Deletes the entity at the target id.
 	 * 
-	 * @param id
-	 *            The ID of the entity to delete.
-	 * @param service
-	 *            The service to load balance.
-	 * @param endpointURI
-	 *            The endpoint URI (e.g., "products").
-	 * @param entityClass
-	 *            The class of entities to send/receive.
-	 * @param <T>
-	 *            Type of entity to handle.
-	 * @throws NotFoundException
-	 *             If 404 was returned.
-	 * @throws LoadBalancerTimeoutException
-	 *             On receiving the 408 status code and on repeated load balancer
-	 *             socket timeouts.
+	 * @param id          The ID of the entity to delete.
+	 * @param service     The service to load balance.
+	 * @param endpointURI The endpoint URI (e.g., "products").
+	 * @param entityClass The class of entities to send/receive.
+	 * @param <T>         Type of entity to handle.
+	 * @throws NotFoundException            If 404 was returned.
+	 * @throws LoadBalancerTimeoutException On receiving the 408 status code and on
+	 *                                      repeated load balancer socket timeouts.
 	 * @return True, if deletion succeeded; false otherwise.
 	 */
 	public static <T> boolean deleteEntity(Service service, String endpointURI, Class<T> entityClass, long id)
@@ -123,21 +138,14 @@ public final class LoadBalancedCRUDOperations {
 	/**
 	 * Returns the entity with the specified id. Returns null if it does not exist.
 	 * 
-	 * @param id
-	 *            Id of the entity to find.
-	 * @param service
-	 *            The service to load balance.
-	 * @param endpointURI
-	 *            The endpoint URI (e.g., "products").
-	 * @param entityClass
-	 *            The class of entities to send/receive.
-	 * @param <T>
-	 *            Type of entity to handle.
-	 * @throws NotFoundException
-	 *             If 404 was returned.
-	 * @throws LoadBalancerTimeoutException
-	 *             On receiving the 408 status code and on repeated load balancer
-	 *             socket timeouts.
+	 * @param id          Id of the entity to find.
+	 * @param service     The service to load balance.
+	 * @param endpointURI The endpoint URI (e.g., "products").
+	 * @param entityClass The class of entities to send/receive.
+	 * @param <T>         Type of entity to handle.
+	 * @throws NotFoundException            If 404 was returned.
+	 * @throws LoadBalancerTimeoutException On receiving the 408 status code and on
+	 *                                      repeated load balancer socket timeouts.
 	 * @return The entity; null if it does not exist.
 	 */
 	public static <T> T getEntity(Service service, String endpointURI, Class<T> entityClass, long id)
@@ -149,23 +157,15 @@ public final class LoadBalancedCRUDOperations {
 	/**
 	 * Returns a list of Entities of the relevant type.
 	 * 
-	 * @param service
-	 *            The service to load balance.
-	 * @param endpointURI
-	 *            The endpoint URI (e.g., "products").
-	 * @param entityClass
-	 *            The class of entities to send/receive.
-	 * @param propertyName
-	 *            name of filter property
-	 * @param propertyValue
-	 *            value of filter property
-	 * @param <T>
-	 *            Type of entity to handle.
-	 * @throws NotFoundException
-	 *             If 404 was returned.
-	 * @throws LoadBalancerTimeoutException
-	 *             On receiving the 408 status code and on repeated load balancer
-	 *             socket timeouts.
+	 * @param service       The service to load balance.
+	 * @param endpointURI   The endpoint URI (e.g., "products").
+	 * @param entityClass   The class of entities to send/receive.
+	 * @param propertyName  name of filter property
+	 * @param propertyValue value of filter property
+	 * @param <T>           Type of entity to handle.
+	 * @throws NotFoundException            If 404 was returned.
+	 * @throws LoadBalancerTimeoutException On receiving the 408 status code and on
+	 *                                      repeated load balancer socket timeouts.
 	 * @return List of entities; empty list if non were found.
 	 */
 	public static <T> T getEntityWithProperties(Service service, String endpointURI, Class<T> entityClass,
@@ -177,24 +177,16 @@ public final class LoadBalancedCRUDOperations {
 	/**
 	 * Returns a list of Entities of the relevant type.
 	 * 
-	 * @param service
-	 *            The service to load balance.
-	 * @param endpointURI
-	 *            The endpoint URI (e.g., "products").
-	 * @param entityClass
-	 *            The class of entities to send/receive.
-	 * @param startIndex
-	 *            The index of the first entity to return (index, not ID!). -1, if
-	 *            you don't want to set an index.
-	 * @param limit
-	 *            Maximum amount of entities to return. -1, for no max.
-	 * @param <T>
-	 *            Type of entity to handle.
-	 * @throws NotFoundException
-	 *             If 404 was returned.
-	 * @throws LoadBalancerTimeoutException
-	 *             On receiving the 408 status code and on repeated load balancer
-	 *             socket timeouts.
+	 * @param service     The service to load balance.
+	 * @param endpointURI The endpoint URI (e.g., "products").
+	 * @param entityClass The class of entities to send/receive.
+	 * @param startIndex  The index of the first entity to return (index, not ID!).
+	 *                    -1, if you don't want to set an index.
+	 * @param limit       Maximum amount of entities to return. -1, for no max.
+	 * @param <T>         Type of entity to handle.
+	 * @throws NotFoundException            If 404 was returned.
+	 * @throws LoadBalancerTimeoutException On receiving the 408 status code and on
+	 *                                      repeated load balancer socket timeouts.
 	 * @return List of entities; empty list if non were found.
 	 */
 	public static <T> List<T> getEntities(Service service, String endpointURI, Class<T> entityClass, int startIndex,
@@ -209,28 +201,18 @@ public final class LoadBalancedCRUDOperations {
 	 * with ID 2, beginning from item with index 1 (skipping item 0). Note that the
 	 * AbstractCRUDEndpoint does not offer this feature by default.
 	 * 
-	 * @param service
-	 *            The service to load balance.
-	 * @param endpointURI
-	 *            The endpoint URI (e.g., "products").
-	 * @param entityClass
-	 *            The class of entities to send/receive.
-	 * @param filterURI
-	 *            Name of the objects to filter for. E.g., "category".
-	 * @param filterId
-	 *            Id of the Object to filter for. E.g, 2
-	 * @param startIndex
-	 *            The index of the first entity to return (index, not ID!). -1, if
-	 *            you don't want to set an index.
-	 * @param limit
-	 *            Maximum amount of entities to return. -1, for no max.
-	 * @param <T>
-	 *            Type of entity to handle.
-	 * @throws NotFoundException
-	 *             If 404 was returned.
-	 * @throws LoadBalancerTimeoutException
-	 *             On receiving the 408 status code and on repeated load balancer
-	 *             socket timeouts.
+	 * @param service     The service to load balance.
+	 * @param endpointURI The endpoint URI (e.g., "products").
+	 * @param entityClass The class of entities to send/receive.
+	 * @param filterURI   Name of the objects to filter for. E.g., "category".
+	 * @param filterId    Id of the Object to filter for. E.g, 2
+	 * @param startIndex  The index of the first entity to return (index, not ID!).
+	 *                    -1, if you don't want to set an index.
+	 * @param limit       Maximum amount of entities to return. -1, for no max.
+	 * @param <T>         Type of entity to handle.
+	 * @throws NotFoundException            If 404 was returned.
+	 * @throws LoadBalancerTimeoutException On receiving the 408 status code and on
+	 *                                      repeated load balancer socket timeouts.
 	 * @return List of entities; empty list if non were found.
 	 */
 	public static <T> List<T> getEntities(Service service, String endpointURI, Class<T> entityClass, String filterURI,

@@ -6,13 +6,13 @@ public class IDFactory {
 	private long discriminator;
 
 	public IDFactory() {
-		this.creationTimeMillis = System.currentTimeMillis();
+		this.creationTimeMillis = System.nanoTime();
 		this.lastTimeMillis = creationTimeMillis;
 	}
 
 	public synchronized String createId() {
 		String id;
-		long now = System.currentTimeMillis();
+		long now = System.nanoTime();
 
 		if (now == lastTimeMillis) {
 			++discriminator;

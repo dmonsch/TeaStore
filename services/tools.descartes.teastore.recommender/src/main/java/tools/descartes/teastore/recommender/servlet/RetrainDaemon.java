@@ -61,7 +61,7 @@ public class RetrainDaemon extends Thread {
 			RegistryClient.getClient().runAfterServiceIsAvailable(Service.PERSISTENCE, new StartupCallback() {
 				@Override
 				public void callback() {
-					TrainingSynchronizer.getInstance().retrieveDataAndRetrain();
+					TrainingSynchronizer.getInstance().retrieveDataAndRetrain(0, 0);
 				}
 			}, Service.RECOMMENDER);
 		}

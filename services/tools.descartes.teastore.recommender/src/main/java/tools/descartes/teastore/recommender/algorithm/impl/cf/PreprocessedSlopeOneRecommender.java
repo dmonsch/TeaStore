@@ -16,6 +16,8 @@ package tools.descartes.teastore.recommender.algorithm.impl.cf;
 import java.util.HashMap;
 import java.util.Map;
 
+import tools.descartes.teastore.monitoring.TeastoreMonitoringMetadata;
+
 /**
  * Recommender based on item-based collaborative filtering with the slope one
  * algorithm.
@@ -39,8 +41,7 @@ public class PreprocessedSlopeOneRecommender extends SlopeOneRecommender {
 	}
 
 	/**
-	 * @param predictedRatings
-	 *            the predictedRatings to set
+	 * @param predictedRatings the predictedRatings to set
 	 */
 	public void setPredictedRatings(Map<Long, Map<Long, Double>> predictedRatings) {
 		this.predictedRatings = predictedRatings;
@@ -53,8 +54,8 @@ public class PreprocessedSlopeOneRecommender extends SlopeOneRecommender {
 	}
 
 	@Override
-	protected void executePreprocessing() {
-		super.executePreprocessing();
+	protected void executePreprocessing(long orders, long orderItems) {
+		super.executePreprocessing(orders, orderItems);
 		predictedRatings = new HashMap<>();
 		// Moving the matrix calculation to the preprocessing to optimize runtime
 		// behavior
@@ -63,5 +64,15 @@ public class PreprocessedSlopeOneRecommender extends SlopeOneRecommender {
 			Map<Long, Double> pred = super.getUserVector(userid);
 			predictedRatings.put(userid, pred);
 		}
+	}
+
+	@Override
+	protected String getServiceId() {
+		return TeastoreMonitoringMetadata.SERVICE_RECOMMENDER_SLOPE_ONE_PREPROC_RECOMMEND;
+	}
+
+	@Override
+	protected String getInternalActionId() {
+		return TeastoreMonitoringMetadata.INTERNAL_ACTION_RECOMMENDER_SLOPE_ONE_PREPROC_RECOMMEND;
 	}
 }

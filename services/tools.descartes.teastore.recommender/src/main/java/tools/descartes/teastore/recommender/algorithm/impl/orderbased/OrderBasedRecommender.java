@@ -17,6 +17,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 
+import dmodel.designtime.monitoring.controller.ServiceParameters;
+import dmodel.designtime.monitoring.controller.ThreadMonitoringController;
+import tools.descartes.teastore.monitoring.TeastoreMonitoringMetadata;
 import tools.descartes.teastore.recommender.algorithm.AbstractRecommender;
 import tools.descartes.teastore.recommender.algorithm.OrderItemSet;
 import tools.descartes.teastore.recommender.algorithm.impl.UseFallBackException;
@@ -33,38 +36,51 @@ public class OrderBasedRecommender extends AbstractRecommender {
 	/*
 	 * (non-Javadoc)
 	 * 
-	 * @see
-	 * tools.descartes.teastore.recommender.algorithm.AbstractRecommender#
+	 * @see tools.descartes.teastore.recommender.algorithm.AbstractRecommender#
 	 * execute( java.util.List)
 	 */
 	@Override
 	protected List<Long> execute(Long userid, List<Long> currentItems) {
-		// Map with all product IDs and how often they have been bought in the same cart
-		// with one of the items in the current cart
-		HashMap<Long, Double> counts = new HashMap<>();
-		// treat all products in the current cart equally, and sum all the occurrences
-		for (Long product : currentItems) {
-			addAllCountsOfProduct(counts, product);
-		}
+		ServiceParameters parameters = new ServiceParameters();
+		parameters.addValue("items.VALUE", currentItems.size());
+		ThreadMonitoringController.getInstance()
+				.enterService(TeastoreMonitoringMetadata.SERVICE_RECOMMENDER_ORDER_BASED_RECOMMEND, this, parameters);
+		ThreadMonitoringController.getInstance().enterInternalAction(
+				TeastoreMonitoringMetadata.INTERNAL_ACTION_RECOMMENDER_ORDER_BASED_RECOMMEND,
+				TeastoreMonitoringMetadata.RESOURCE_CPU);
 
-		if (counts.isEmpty()) {
-			throw new UseFallBackException(
-					"No item was bought together with the current cart. Therefore, all counts are 0.");
-		}
+		try {
+			// Map with all product IDs and how often they have been bought in the same cart
+			// with one of the items in the current cart
+			HashMap<Long, Double> counts = new HashMap<>();
+			// treat all products in the current cart equally, and sum all the occurrences
+			for (Long product : currentItems) {
+				addAllCountsOfProduct(counts, product);
+			}
 
-		// the count list contains all items in the current cart
-		// however, this is fine, as it is filtered
-		return filterRecommendations(counts, currentItems);
+			if (counts.isEmpty()) {
+				throw new UseFallBackException(
+						"No item was bought together with the current cart. Therefore, all counts are 0.");
+			}
+
+			// the count list contains all items in the current cart
+			// however, this is fine, as it is filtered
+			return filterRecommendations(counts, currentItems);
+		} finally {
+			ThreadMonitoringController.getInstance().exitInternalAction(
+					TeastoreMonitoringMetadata.INTERNAL_ACTION_RECOMMENDER_ORDER_BASED_RECOMMEND,
+					TeastoreMonitoringMetadata.RESOURCE_CPU);
+			ThreadMonitoringController.getInstance()
+					.exitService(TeastoreMonitoringMetadata.SERVICE_RECOMMENDER_ORDER_BASED_RECOMMEND);
+		}
 	}
 
 	/**
 	 * Adds the counts of the given product to the given count list.
 	 * 
-	 * @param counts
-	 *            The count list, assinging each product id, how often it was bought
-	 *            with the given product.
-	 * @param product
-	 *            The product id of the specific product.
+	 * @param counts  The count list, assinging each product id, how often it was
+	 *                bought with the given product.
+	 * @param product The product id of the specific product.
 	 */
 	private void addAllCountsOfProduct(HashMap<Long, Double> counts, Long product) {
 		for (Set<OrderItemSet> set : getUserItemSets().values()) {

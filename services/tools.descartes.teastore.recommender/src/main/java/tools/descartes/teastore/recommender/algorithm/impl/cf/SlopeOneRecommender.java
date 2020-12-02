@@ -18,6 +18,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import dmodel.designtime.monitoring.controller.ServiceParameters;
+import dmodel.designtime.monitoring.controller.ThreadMonitoringController;
+import tools.descartes.teastore.monitoring.TeastoreMonitoringMetadata;
 import tools.descartes.teastore.recommender.algorithm.AbstractRecommender;
 import tools.descartes.teastore.recommender.algorithm.impl.UseFallBackException;
 
@@ -50,8 +53,7 @@ public class SlopeOneRecommender extends AbstractRecommender {
 	}
 
 	/**
-	 * @param differences
-	 *            the differences to set
+	 * @param differences the differences to set
 	 */
 	public void setDifferences(Map<Long, Map<Long, Double>> differences) {
 		this.differences = differences;
@@ -65,8 +67,7 @@ public class SlopeOneRecommender extends AbstractRecommender {
 	}
 
 	/**
-	 * @param frequencies
-	 *            the frequencies to set
+	 * @param frequencies the frequencies to set
 	 */
 	public void setFrequencies(Map<Long, Map<Long, Integer>> frequencies) {
 		this.frequencies = frequencies;
@@ -75,31 +76,50 @@ public class SlopeOneRecommender extends AbstractRecommender {
 	/*
 	 * (non-Javadoc)
 	 * 
-	 * @see
-	 * tools.descartes.teastore.recommender.algorithm.AbstractRecommender#
+	 * @see tools.descartes.teastore.recommender.algorithm.AbstractRecommender#
 	 * execute(java.util.List)
 	 */
 	@Override
 	protected List<Long> execute(Long userid, List<Long> currentItems) {
-		if (userid == null) {
-			throw new UseFallBackException(this.getClass().getName()
-					+ " does not support null userids. Use a pseudouser or switch to another approach.");
-		}
-		if (getUserBuyingMatrix().get(userid) == null) {
-			// this user has not bought anything yet, so we do not have any information
-			throw new UseFallBackException("No user information.");
-		}
-		Map<Long, Double> importances = getUserVector(userid);
-		return filterRecommendations(importances, currentItems);
+		ServiceParameters parameters = new ServiceParameters();
+		parameters.addValue("items.VALUE", currentItems.size());
 
+		ThreadMonitoringController.getInstance().enterService(getServiceId(), this, parameters);
+		ThreadMonitoringController.getInstance().enterInternalAction(getInternalActionId(),
+				TeastoreMonitoringMetadata.RESOURCE_CPU);
+
+		try {
+			if (userid == null) {
+				throw new UseFallBackException(this.getClass().getName()
+						+ " does not support null userids. Use a pseudouser or switch to another approach.");
+			}
+			if (getUserBuyingMatrix().get(userid) == null) {
+				// this user has not bought anything yet, so we do not have any information
+				throw new UseFallBackException("No user information.");
+			}
+			Map<Long, Double> importances = getUserVector(userid);
+			return filterRecommendations(importances, currentItems);
+		} finally {
+			ThreadMonitoringController.getInstance().exitInternalAction(getInternalActionId(),
+					TeastoreMonitoringMetadata.RESOURCE_CPU);
+			ThreadMonitoringController.getInstance().exitService(getServiceId());
+		}
+
+	}
+
+	protected String getServiceId() {
+		return TeastoreMonitoringMetadata.SERVICE_RECOMMENDER_SLOPE_ONE_RECOMMEND;
+	}
+
+	protected String getInternalActionId() {
+		return TeastoreMonitoringMetadata.INTERNAL_ACTION_RECOMMENDER_SLOPE_ONE_RECOMMEND;
 	}
 
 	/**
 	 * Generates one row of the matrix for the given user. (Predicts the user score
 	 * for each product ID.)
 	 * 
-	 * @param userid
-	 *            The user to predict for
+	 * @param userid The user to predict for
 	 * @return A Map assigning each product ID a (predicted) score (for the given
 	 *         user)
 	 */
@@ -139,18 +159,32 @@ public class SlopeOneRecommender extends AbstractRecommender {
 	}
 
 	@Override
-	protected void executePreprocessing() {
+	protected void executePreprocessing(long orders, long orderItems) {
+		ServiceParameters parameters = new ServiceParameters();
+		parameters.addValue("orders.VALUE", orders);
+		parameters.addValue("orderItems.VALUE", orderItems);
+		ThreadMonitoringController.getInstance()
+				.enterService(TeastoreMonitoringMetadata.SERVICE_RECOMMENDER_SLOPE_ONE_TRAIN, this, parameters);
 		// The buying matrix is considered to be the rating
 		// i.e. the more buys, the higher the rating
+		ThreadMonitoringController.getInstance().enterInternalAction(
+				TeastoreMonitoringMetadata.INTERNAL_ACTION_RECOMMENDER_SLOPE_ONE_TRAIN,
+				TeastoreMonitoringMetadata.RESOURCE_CPU);
+
 		buildDifferencesMatrices(getUserBuyingMatrix());
+		ThreadMonitoringController.getInstance().exitInternalAction(
+				TeastoreMonitoringMetadata.INTERNAL_ACTION_RECOMMENDER_SLOPE_ONE_TRAIN,
+				TeastoreMonitoringMetadata.RESOURCE_CPU);
+
+		ThreadMonitoringController.getInstance()
+				.exitService(TeastoreMonitoringMetadata.SERVICE_RECOMMENDER_SLOPE_ONE_TRAIN);
 	}
 
 	/**
 	 * Based on the available data, calculate the relationships between the items
 	 * and number of occurrences. Fill the difference and frequencies matrix.
 	 * 
-	 * @param data
-	 *            The user rating matrix
+	 * @param data The user rating matrix
 	 */
 	private void buildDifferencesMatrices(Map<Long, Map<Long, Double>> userRatingMatrix) {
 		for (Map<Long, Double> uservalues : userRatingMatrix.values()) {

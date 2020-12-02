@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.UUID;
 
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
@@ -27,8 +28,12 @@ import javax.servlet.http.HttpServletResponse;
 
 import dmodel.designtime.monitoring.controller.ServiceParameters;
 import dmodel.designtime.monitoring.controller.ThreadMonitoringController;
+import tools.descartes.teastore.registryclient.Service;
 import tools.descartes.teastore.registryclient.loadbalancers.LoadBalancerTimeoutException;
+import tools.descartes.teastore.registryclient.rest.LoadBalancedCRUDOperations;
 import tools.descartes.teastore.registryclient.rest.LoadBalancedStoreOperations;
+import tools.descartes.teastore.registryclient.util.NotFoundException;
+import tools.descartes.teastore.entities.Order;
 import tools.descartes.teastore.entities.OrderItem;
 import tools.descartes.teastore.entities.message.SessionBlob;
 import tools.descartes.teastore.monitoring.TeastoreMonitoringMetadata;
@@ -107,11 +112,29 @@ public class CartActionServlet extends AbstractUIServlet {
 			redirect("/order", response);
 		} else {
 			SessionBlob blob = getSessionBlob(request);
+			
+			long noItems;
+			long noOrders;
+			// retrieve
+			try {
+				List<OrderItem> items = LoadBalancedCRUDOperations.getEntities(Service.PERSISTENCE, "orderitems", OrderItem.class, -1, -1);
+				noItems = items.size();
+			} catch (NotFoundException | LoadBalancerTimeoutException e) {
+				noItems = 0;
+			}
+			try {
+				List<Order> orders = LoadBalancedCRUDOperations.getEntities(Service.PERSISTENCE, "orders", Order.class, -1, -1);
+				noOrders = orders.size();
+			} catch (NotFoundException | LoadBalancerTimeoutException e) {
+				noOrders = 0;
+			}
 
 			ServiceParameters parameters = new ServiceParameters();
 			parameters.addValue("items.VALUE", blob.getOrderItems().size());
+			parameters.addValue("orders.VALUE", noOrders);
+			parameters.addValue("orderItems.VALUE", noItems);
 
-			ThreadMonitoringController.setSessionId(blob.getSID());
+			ThreadMonitoringController.setSessionId(UUID.randomUUID().toString());
 			ThreadMonitoringController.getInstance()
 					.enterService(TeastoreMonitoringMetadata.SERVICE_WEBUI_CONFIRM_ORDER, this, parameters);
 
@@ -126,7 +149,7 @@ public class CartActionServlet extends AbstractUIServlet {
 
 				blob = LoadBalancedStoreOperations.placeOrder(blob, infos[0] + " " + infos[1], infos[2], infos[3],
 						infos[4], YearMonth.parse(infos[6], DTF).atDay(1).format(DateTimeFormatter.ISO_LOCAL_DATE),
-						price, infos[5]);
+						price, infos[5], noOrders, noItems);
 				saveSessionBlob(blob, response);
 				redirect("/", response, MESSAGECOOKIE, ORDERCONFIRMED);
 			} finally {
@@ -167,14 +190,31 @@ public class CartActionServlet extends AbstractUIServlet {
 	 * @param response
 	 */
 	private void updateOrder(HttpServletRequest request, List<OrderItem> orderItems, HttpServletResponse response) {
-		SessionBlob blob = getSessionBlob(request);
-		for (OrderItem orderItem : orderItems) {
-			if (request.getParameter("orderitem_" + orderItem.getProductId()) != null) {
-				blob = LoadBalancedStoreOperations.updateQuantity(blob, orderItem.getProductId(),
-						Integer.parseInt(request.getParameter("orderitem_" + orderItem.getProductId())));
+
+		ServiceParameters parameters = new ServiceParameters();
+		parameters.addValue("items.VALUE", orderItems.size());
+		ThreadMonitoringController.getInstance().enterService(TeastoreMonitoringMetadata.SERVICE_WEBUI_UPDATE_ORDER,
+				this, parameters);
+
+		try {
+			SessionBlob blob = getSessionBlob(request);
+			for (OrderItem orderItem : orderItems) {
+				if (request.getParameter("orderitem_" + orderItem.getProductId()) != null) {
+					blob.setMonitoringExternalId(
+							TeastoreMonitoringMetadata.EXTERNAL_CALL_WEBUI_LOADBALANCER_UPDATE_ORDER);
+					blob.setMonitoringTraceId(ThreadMonitoringController.getInstance().getCurrentTraceId());
+					ThreadMonitoringController.getInstance().setExternalCallId(
+							TeastoreMonitoringMetadata.EXTERNAL_CALL_WEBUI_LOADBALANCER_UPDATE_ORDER);
+
+					blob = LoadBalancedStoreOperations.updateQuantity(blob, orderItem.getProductId(),
+							Integer.parseInt(request.getParameter("orderitem_" + orderItem.getProductId())));
+				}
 			}
+
+			saveSessionBlob(blob, response);
+		} finally {
+			ThreadMonitoringController.getInstance().exitService(TeastoreMonitoringMetadata.SERVICE_WEBUI_UPDATE_ORDER);
 		}
-		saveSessionBlob(blob, response);
 	}
 
 }
