@@ -21,7 +21,7 @@ import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.QueryParam;
 
-import dmodel.designtime.monitoring.controller.ThreadMonitoringController;
+import cipm.consistency.bridge.monitoring.controller.ThreadMonitoringController;
 import tools.descartes.teastore.persistence.domain.OrderItemRepository;
 import tools.descartes.teastore.persistence.repository.DataGenerator;
 import tools.descartes.teastore.registryclient.util.AbstractCRUDEndpoint;

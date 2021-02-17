@@ -18,8 +18,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import dmodel.designtime.monitoring.controller.ServiceParameters;
-import dmodel.designtime.monitoring.controller.ThreadMonitoringController;
+import cipm.consistency.bridge.monitoring.controller.ServiceParameters;
+import cipm.consistency.bridge.monitoring.controller.ThreadMonitoringController;
 import tools.descartes.teastore.monitoring.TeastoreMonitoringMetadata;
 import tools.descartes.teastore.recommender.algorithm.AbstractRecommender;
 import tools.descartes.teastore.recommender.algorithm.impl.UseFallBackException;

@@ -32,8 +32,8 @@ import javax.ws.rs.core.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import dmodel.designtime.monitoring.controller.ServiceParameters;
-import dmodel.designtime.monitoring.controller.ThreadMonitoringController;
+import cipm.consistency.bridge.monitoring.controller.ServiceParameters;
+import cipm.consistency.bridge.monitoring.controller.ThreadMonitoringController;
 import tools.descartes.teastore.registryclient.Service;
 import tools.descartes.teastore.registryclient.loadbalancers.LoadBalancerTimeoutException;
 import tools.descartes.teastore.registryclient.loadbalancers.ServiceLoadBalancer;

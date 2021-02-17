@@ -16,8 +16,8 @@ package tools.descartes.teastore.recommender.algorithm.impl.cf;
 import java.util.HashMap;
 import java.util.Map;
 
-import dmodel.designtime.monitoring.controller.ServiceParameters;
-import dmodel.designtime.monitoring.controller.ThreadMonitoringController;
+import cipm.consistency.bridge.monitoring.controller.ServiceParameters;
+import cipm.consistency.bridge.monitoring.controller.ThreadMonitoringController;
 import tools.descartes.teastore.monitoring.TeastoreMonitoringMetadata;
 
 /**

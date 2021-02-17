@@ -19,8 +19,8 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Response;
 
-import dmodel.designtime.monitoring.controller.ServiceParameters;
-import dmodel.designtime.monitoring.controller.ThreadMonitoringController;
+import cipm.consistency.bridge.monitoring.controller.ServiceParameters;
+import cipm.consistency.bridge.monitoring.controller.ThreadMonitoringController;
 import tools.descartes.teastore.recommender.algorithm.IRecommender;
 import tools.descartes.teastore.recommender.servlet.TrainingSynchronizer;
 import tools.descartes.teastore.entities.Order;

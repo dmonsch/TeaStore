@@ -16,7 +16,7 @@ package tools.descartes.teastore.registryclient.rest;
 import java.util.List;
 import java.util.Optional;
 
-import dmodel.designtime.monitoring.controller.ThreadMonitoringController;
+import cipm.consistency.bridge.monitoring.controller.ThreadMonitoringController;
 import tools.descartes.teastore.entities.Order;
 import tools.descartes.teastore.entities.OrderItem;
 import tools.descartes.teastore.monitoring.TeastoreMonitoringMetadata;
