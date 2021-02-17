@@ -138,7 +138,7 @@ public final class TrainingSynchronizer {
 			Response result = null;
 			try {
 				result = ServiceLoadBalancer.loadBalanceRESTOperation(Service.PERSISTENCE, "generatedb", String.class,
-						client -> client.getService().path(client.getApplicationURI()).path(client.getEndpointURI())
+						(id, client) -> client.getService().path(client.getApplicationURI()).path(client.getEndpointURI())
 								.path("finished").request().get());
 
 				if (result != null && Boolean.parseBoolean(result.readEntity(String.class))) {
@@ -185,45 +185,40 @@ public final class TrainingSynchronizer {
 				.enterService(TeastoreMonitoringMetadata.SERVICE_RECOMMENDER_TRAIN_RECOMMENDER, this, parameters);
 
 		ThreadMonitoringController.getInstance().enterInternalAction(
-				TeastoreMonitoringMetadata.INTERNAL_ACTION_RECOMMENDER_TRAIN_GET_ORDERS,
+				TeastoreMonitoringMetadata.INTERNAL_ACTION_RECOMMENDER_TRAIN_GET_ORDERITEMS,
 				TeastoreMonitoringMetadata.RESOURCE_CPU);
 		
-		long wait = System.currentTimeMillis();
 		waitForPersistence();
-		LOG.info("Waiting for persistence needed " + (System.currentTimeMillis() - wait) + "ms.");
 
 		List<OrderItem> items = null;
 		List<Order> orders = null;
 		// retrieve
-		wait = System.currentTimeMillis();
 		try {
 			items = LoadBalancedCRUDOperations.getEntities(Service.PERSISTENCE, "orderitems", OrderItem.class, -1, -1);
-			long noItems = items.size();
-			LOG.trace("Retrieved " + noItems + " orderItems, starting retrieving of orders now.");
 		} catch (NotFoundException | LoadBalancerTimeoutException e) {
 			// set ready anyway to avoid deadlocks
 			setReady(true);
-			LOG.error("Database retrieving failed.");
 			return -1;
 		}
-		LOG.info("Getting items needed " + (System.currentTimeMillis() - wait) + "ms.");
-		wait = System.currentTimeMillis();
+		
+		ThreadMonitoringController.getInstance().exitInternalAction(
+				TeastoreMonitoringMetadata.INTERNAL_ACTION_RECOMMENDER_TRAIN_GET_ORDERITEMS,
+				TeastoreMonitoringMetadata.RESOURCE_CPU);
+		
+		ThreadMonitoringController.getInstance().enterInternalAction(
+				TeastoreMonitoringMetadata.INTERNAL_ACTION_RECOMMENDER_TRAIN_GET_ORDERS,
+				TeastoreMonitoringMetadata.RESOURCE_CPU);
+		
 		try {
 			orders = LoadBalancedCRUDOperations.getEntities(Service.PERSISTENCE, "orders", Order.class, -1, -1);
-			long noOrders = orders.size();
-			LOG.trace("Retrieved " + noOrders + " orders, starting training now.");
 		} catch (NotFoundException | LoadBalancerTimeoutException e) {
 			// set ready anyway to avoid deadlocks
 			setReady(true);
-			LOG.error("Database retrieving failed.");
 			return -1;
 		}
-		LOG.info("Getting orders needed " + (System.currentTimeMillis() - wait) + "ms.");
 		
-		wait = System.currentTimeMillis();
 		// filter lists
 		filterLists(items, orders);
-		LOG.info("Filtering lists needed  " + (System.currentTimeMillis() - wait) + "ms.");
 
 		ThreadMonitoringController.getInstance().exitInternalAction(
 				TeastoreMonitoringMetadata.INTERNAL_ACTION_RECOMMENDER_TRAIN_GET_ORDERS,
@@ -241,17 +236,12 @@ public final class TrainingSynchronizer {
 	}
 
 	private void filterLists(List<OrderItem> orderItems, List<Order> orders) {
-		LOG.info("Orders size: " + orders.size());
-		LOG.info("Order items size: " + orderItems.size());
 		// since we are not registered ourselves, we can multicast to all services
-		long wait = System.currentTimeMillis();
 		List<Response> maxTimeResponses = ServiceLoadBalancer.multicastRESTOperation(Service.RECOMMENDER,
 				"train/timestamp", Response.class,
 				client -> client.getService().path(client.getApplicationURI()).path(client.getEndpointURI())
 						.request(MediaType.TEXT_PLAIN).accept(MediaType.TEXT_PLAIN).get());
-		LOG.info("Getting max time responses needed " + (System.currentTimeMillis() - wait) + "ms.");
 		
-		wait = System.currentTimeMillis();
 		for (Response response : maxTimeResponses) {
 			if (response == null) {
 				LOG.warn("One service response was null and is therefore not available for time-check.");
@@ -269,9 +259,7 @@ public final class TrainingSynchronizer {
 				LOG.warn("Service " + response + "was not available for time-check.");
 			}
 		}
-		LOG.info("Processing responses needed " + (System.currentTimeMillis() - wait) + "ms.");
 		
-		wait = System.currentTimeMillis();
 		if (maxTime == Long.MIN_VALUE) {
 			// we are the only known service
 			// therefore we find max and set it
@@ -279,13 +267,10 @@ public final class TrainingSynchronizer {
 				maxTime = Math.max(maxTime, toMillis(or.getTime()));
 			}
 		}
-		// filterForMaxtimeStamp(orderItems, orders);
-		LOG.info("Timestamp filtering needed " + (System.currentTimeMillis() - wait) + "ms.");
 	}
 
 	private void filterForMaxtimeStamp(List<OrderItem> orderItems, List<Order> orders) {
 		// filter orderItems and orders and ignore newer entries.
-		long wait = System.currentTimeMillis();
 		List<Order> remove = new ArrayList<>();
 		for (Order or : orders) {
 			if (toMillis(or.getTime()) > maxTime) {
@@ -293,14 +278,12 @@ public final class TrainingSynchronizer {
 			}
 		}
 		orders.removeAll(remove);
-		LOG.info("Order filtering needed " + (System.currentTimeMillis() - wait) + "ms.");
 		
 		Set<Long> containedOrders = new HashSet<Long>();
 		for (Order or : orders) {
 			containedOrders.add(or.getId());
 		}
 		
-		wait = System.currentTimeMillis();
 		List<OrderItem> removeItems = new ArrayList<>();
 		for (OrderItem orderItem : orderItems) {
 			boolean contained = containedOrders.contains(orderItem.getOrderId());
@@ -309,7 +292,6 @@ public final class TrainingSynchronizer {
 			}
 		}
 		orderItems.removeAll(removeItems);
-		LOG.info("Items filtering needed " + (System.currentTimeMillis() - wait) + "ms.");
 	}
 
 	private long toMillis(String date) {

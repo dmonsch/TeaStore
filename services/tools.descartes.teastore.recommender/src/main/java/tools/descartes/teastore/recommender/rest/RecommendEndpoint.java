@@ -84,6 +84,7 @@ public class RecommendEndpoint {
 	}
 
 	@GET
+	@Path("changeRecommender")
 	public Response changeRecommender(@QueryParam("id") final int id) {
 		RecommenderSelector.getInstance().changeRecommender(id);
 

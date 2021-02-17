@@ -16,6 +16,8 @@ package tools.descartes.teastore.recommender.algorithm.impl.cf;
 import java.util.HashMap;
 import java.util.Map;
 
+import dmodel.designtime.monitoring.controller.ServiceParameters;
+import dmodel.designtime.monitoring.controller.ThreadMonitoringController;
 import tools.descartes.teastore.monitoring.TeastoreMonitoringMetadata;
 
 /**
@@ -54,8 +56,20 @@ public class PreprocessedSlopeOneRecommender extends SlopeOneRecommender {
 	}
 
 	@Override
-	protected void executePreprocessing(long orders, long orderItems) {
-		super.executePreprocessing(orders, orderItems);
+	protected void executePreprocessing(long orders, long orderItems, boolean monitor) {
+		ServiceParameters parameters = new ServiceParameters();
+		parameters.addValue("orders.VALUE", orders);
+		parameters.addValue("orderItems.VALUE", orderItems);
+		ThreadMonitoringController.getInstance()
+				.enterService(TeastoreMonitoringMetadata.SERVICE_RECOMMENDER_SLOPE_ONE_PREPROC_TRAIN, this, parameters);
+		// The buying matrix is considered to be the rating
+		// i.e. the more buys, the higher the rating
+		ThreadMonitoringController.getInstance().enterInternalAction(
+				TeastoreMonitoringMetadata.INTERNAL_ACTION_RECOMMENDER_SLOPE_ONE_PREPROC_TRAIN,
+				TeastoreMonitoringMetadata.RESOURCE_CPU);
+		
+		super.executePreprocessing(orders, orderItems, false);
+		
 		predictedRatings = new HashMap<>();
 		// Moving the matrix calculation to the preprocessing to optimize runtime
 		// behavior
@@ -64,6 +78,12 @@ public class PreprocessedSlopeOneRecommender extends SlopeOneRecommender {
 			Map<Long, Double> pred = super.getUserVector(userid);
 			predictedRatings.put(userid, pred);
 		}
+		
+		ThreadMonitoringController.getInstance().exitInternalAction(
+				TeastoreMonitoringMetadata.INTERNAL_ACTION_RECOMMENDER_SLOPE_ONE_PREPROC_TRAIN,
+				TeastoreMonitoringMetadata.RESOURCE_CPU);
+		ThreadMonitoringController.getInstance()
+				.exitService(TeastoreMonitoringMetadata.SERVICE_RECOMMENDER_SLOPE_ONE_PREPROC_TRAIN);
 	}
 
 	@Override

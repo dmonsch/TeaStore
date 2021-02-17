@@ -118,7 +118,7 @@ public class LoadBalancerTest {
 		ArrayList<Long> ids = new ArrayList<>();
 		for (int i = 0; i < NUM_SERVERS * 4; i++) {
 			long id = ServiceLoadBalancer.loadBalanceRESTOperation(SERVICE,
-					ENDPOINT, Product.class, client -> NonBalancedCRUDOperations.getEntity(client, 0)).getId();
+					ENDPOINT, Product.class, (idd, client) -> NonBalancedCRUDOperations.getEntity(client, 0)).getId();
 			ids.add(id);
 		}
 		Assert.assertEquals(NUM_SERVERS * 4, ids.size());
@@ -127,7 +127,7 @@ public class LoadBalancerTest {
 		for (int i = 0; i < NUM_SERVERS * 4; i++) {
 			try {
 				ServiceLoadBalancer.loadBalanceRESTOperation(SERVICE, NOT_FOUND_ENDPOINT,
-						Category.class, client -> NonBalancedCRUDOperations.getEntity(client, 0)).getId();
+						Category.class, (id, client) -> NonBalancedCRUDOperations.getEntity(client, 0)).getId();
 			} catch (NotFoundException e) {
 				notFoundExceptionCount++;
 			}
@@ -138,7 +138,7 @@ public class LoadBalancerTest {
 		for (int i = 0; i < NUM_SERVERS * 4; i++) {
 			try {
 				ServiceLoadBalancer.loadBalanceRESTOperation(SERVICE, TIMEOUT_STATUS_ENDPOINT,
-						Category.class, client -> NonBalancedCRUDOperations.getEntity(client, 0)).getId();
+						Category.class, (id, client) -> NonBalancedCRUDOperations.getEntity(client, 0)).getId();
 			} catch (LoadBalancerTimeoutException e) {
 				timoutExceptionCount++;
 			}
@@ -154,7 +154,7 @@ public class LoadBalancerTest {
 		ids.clear();
 		for (int i = 0; i < NUM_SERVERS * 4; i++) {
 			long id = ServiceLoadBalancer.loadBalanceRESTOperation(SERVICE,
-					ENDPOINT, Product.class, client -> NonBalancedCRUDOperations.getEntity(client, 0)).getId();
+					ENDPOINT, Product.class, (idd, client) -> NonBalancedCRUDOperations.getEntity(client, 0)).getId();
 			ids.add(id);
 		}
 		Assert.assertEquals(NUM_SERVERS * 4, ids.size());
@@ -175,7 +175,7 @@ public class LoadBalancerTest {
 		ids.clear();
 		for (int i = 0; i < NUM_SERVERS * 4; i++) {
 			long id = ServiceLoadBalancer.loadBalanceRESTOperation(SERVICE,
-					ENDPOINT, Product.class, client -> NonBalancedCRUDOperations.getEntity(client, 0)).getId();
+					ENDPOINT, Product.class, (idd, client) -> NonBalancedCRUDOperations.getEntity(client, 0)).getId();
 			ids.add(id);
 		}
 		Assert.assertEquals(NUM_SERVERS * 4, ids.size());
@@ -203,7 +203,7 @@ public class LoadBalancerTest {
 		ids.clear();
 		for (int i = 0; i < NUM_SERVERS * 4; i++) {
 			long id = ServiceLoadBalancer.loadBalanceRESTOperation(SERVICE,
-					ENDPOINT, Product.class, client -> NonBalancedCRUDOperations.getEntity(client, 0)).getId();
+					ENDPOINT, Product.class, (idd, client) -> NonBalancedCRUDOperations.getEntity(client, 0)).getId();
 			ids.add(id);
 		}
 		Assert.assertEquals(NUM_SERVERS * 4, ids.size());
@@ -219,7 +219,7 @@ public class LoadBalancerTest {
 		boolean isTimeout = false;
 		try {
 			ServiceLoadBalancer.loadBalanceRESTOperation(SERVICE, TIMEOUTING_ENDPOINT,
-					Product.class, client -> NonBalancedCRUDOperations.getEntity(client, 0)).getId();
+					Product.class, (idd, client) -> NonBalancedCRUDOperations.getEntity(client, 0)).getId();
 		} catch (LoadBalancerTimeoutException e) {
 			isTimeout = true;
 		}

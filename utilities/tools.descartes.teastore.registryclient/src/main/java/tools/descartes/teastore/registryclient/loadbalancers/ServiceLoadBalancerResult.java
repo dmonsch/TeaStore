@@ -15,12 +15,14 @@ package tools.descartes.teastore.registryclient.loadbalancers;
 
 import java.util.function.Function;
 
+import tools.descartes.teastore.registryclient.loadbalancers.ServiceLoadBalancer.Function2;
 import tools.descartes.teastore.registryclient.util.NotFoundException;
 import tools.descartes.teastore.registryclient.util.RESTClient;
 import tools.descartes.teastore.registryclient.util.TimeoutException;
 
 /**
  * Wrapper for results from service load balancer calls.
+ * 
  * @param <R> Entity Type to wrap.
  * @author Joakim von Kistowski
  *
@@ -29,27 +31,28 @@ final class ServiceLoadBalancerResult<R> {
 
 	private int statusCode = 200;
 	private R entity = null;
-	
+
 	private ServiceLoadBalancerResult() {
-		
+
 	}
-	
+
 	/**
 	 * Create a load balancer result by performing a REST operation.
-	 * @param client The rest client to perform the operation with (determined by load balancer).
+	 * 
+	 * @param client    The rest client to perform the operation with (determined by
+	 *                  load balancer).
 	 * @param operation The operation to perform (passed from the user).
-	 * @param <T> REST client type.
-	 * @param <R> Entity type.
-	 * @throws TimeoutException On receiving the 408 status code.
+	 * @param <T>       REST client type.
+	 * @param <R>       Entity type.
+	 * @throws TimeoutException  On receiving the 408 status code.
 	 * @throws NotFoundException On receiving the 404 status code.
 	 * @return The result. Entity is always null on failure.
 	 */
-	static <T, R> ServiceLoadBalancerResult<R> fromRESTOperation(
-			RESTClient<T> client, Function<RESTClient<T>, R> operation)
-			throws NotFoundException, TimeoutException {
+	static <T, R> ServiceLoadBalancerResult<R> fromRESTOperation(int service_id, RESTClient<T> client,
+			Function2<Integer, RESTClient<T>, R> operation) throws NotFoundException, TimeoutException {
 		ServiceLoadBalancerResult<R> result = new ServiceLoadBalancerResult<>();
 		try {
-			result.setEntity(operation.apply(client));
+			result.setEntity(operation.apply(service_id, client));
 		} catch (NotFoundException e) {
 			result.setStatusCode(NotFoundException.ERROR_CODE);
 		} catch (TimeoutException e) {
@@ -60,6 +63,7 @@ final class ServiceLoadBalancerResult<R> {
 
 	/**
 	 * Get the status code for the returned response.
+	 * 
 	 * @return The status code.
 	 */
 	public int getStatusCode() {
@@ -68,6 +72,7 @@ final class ServiceLoadBalancerResult<R> {
 
 	/**
 	 * Set the status code for the returned response.
+	 * 
 	 * @param statusCode The status code.
 	 */
 	private void setStatusCode(int statusCode) {
@@ -76,6 +81,7 @@ final class ServiceLoadBalancerResult<R> {
 
 	/**
 	 * Get the entity from the returned response.
+	 * 
 	 * @return The entity.
 	 */
 	public R getEntity() {
@@ -84,12 +90,11 @@ final class ServiceLoadBalancerResult<R> {
 
 	/**
 	 * Set the entity from the returned response.
+	 * 
 	 * @param entity The entity.
 	 */
 	private void setEntity(R entity) {
 		this.entity = entity;
 	}
-	
-	
-	
+
 }

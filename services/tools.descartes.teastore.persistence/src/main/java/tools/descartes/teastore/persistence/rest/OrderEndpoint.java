@@ -50,9 +50,10 @@ public class OrderEndpoint extends AbstractCRUDEndpoint<Order> {
 
 		ThreadMonitoringController.getInstance()
 				.enterService(TeastoreMonitoringMetadata.SERVICE_PERSISTENCE_CREATE_ORDER_ENTITY, this);
+		
+		ThreadMonitoringController.getInstance().enterInternalAction(
+				TeastoreMonitoringMetadata.INTERNAL_ACTION_PERSIST_ORDER, TeastoreMonitoringMetadata.RESOURCE_CPU);
 		try {
-			ThreadMonitoringController.getInstance().enterInternalAction(
-					TeastoreMonitoringMetadata.INTERNAL_ACTION_PERSIST_ORDER, TeastoreMonitoringMetadata.RESOURCE_CPU);
 			if (DataGenerator.GENERATOR.isMaintenanceMode()) {
 				return -1L;
 			}

@@ -106,7 +106,7 @@ public final class LoadBalancedImageOperations {
 		}
 
 		Response r = ServiceLoadBalancer.loadBalanceRESTOperation(Service.IMAGE, "image", HashMap.class,
-				client -> ResponseWrapper.wrap(HttpWrapper.wrap(client.getEndpointTarget().path("getProductImages"))
+				(id, client) -> ResponseWrapper.wrap(HttpWrapper.wrap(client.getEndpointTarget().path("getProductImages"))
 						.post(Entity.entity(img, MediaType.APPLICATION_JSON))));
 
 		if (r == null) {
@@ -169,7 +169,7 @@ public final class LoadBalancedImageOperations {
 		}
 
 		Response r = ServiceLoadBalancer.loadBalanceRESTOperation(Service.IMAGE, "image", HashMap.class,
-				client -> ResponseWrapper.wrap(HttpWrapper.wrap(client.getEndpointTarget().path("getWebImages"))
+				(id, client) -> ResponseWrapper.wrap(HttpWrapper.wrap(client.getEndpointTarget().path("getWebImages"))
 						.post(Entity.entity(img, MediaType.APPLICATION_JSON))));
 
 		if (r == null) {

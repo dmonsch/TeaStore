@@ -3,6 +3,7 @@ package dmodel.designtime.monitoring.controller;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Arrays;
@@ -49,6 +50,7 @@ public class ThreadMonitoringController {
 		instance.pollInstrumentationModel();
 		instance.registerInstrumentationModelPoll();
 		instance.registerCpuSampler();
+		instance.registerOverheadReport();
 	}
 
 	private static final ITimeSource TIME_SOURCE = MONITORING_CONTROLLER.getTimeSource();
@@ -65,6 +67,7 @@ public class ThreadMonitoringController {
 	private Set<String> monitoredIds = new HashSet<>();
 	private boolean monitoredIdsInited = false;
 	private ObjectMapper objectMapper = new ObjectMapper();
+	private MonitoringOverheadData overheadData = new MonitoringOverheadData();
 
 	private ScheduledExecutorService execService = Executors.newScheduledThreadPool(1, new ThreadFactory() {
 		public Thread newThread(Runnable r) {
@@ -132,6 +135,17 @@ public class ThreadMonitoringController {
 		MONITORING_CONTROLLER = MonitoringController.createInstance(configuration);
 	}
 
+	public void registerOverheadReport() {
+		overheadData.clear();
+		execService.scheduleAtFixedRate(new Runnable() {
+			@Override
+			public void run() {
+				reportOverhead();
+			}
+		}, MonitoringConfiguration.OVERHEAD_REPORT_INTERVAL, MonitoringConfiguration.OVERHEAD_REPORT_INTERVAL,
+				TimeUnit.MINUTES);
+	}
+
 	public void registerCpuSampler() {
 		if (!cpuSamplerActive) {
 			CPUSamplingJob job = new CPUSamplingJob();
@@ -161,6 +175,38 @@ public class ThreadMonitoringController {
 				}
 			}
 		}, 15, 15, TimeUnit.SECONDS);
+	}
+
+	private void reportOverhead() {
+		try {
+			final URL url = new URL("http://" + MonitoringConfiguration.SERVER_HOSTNAME + ":"
+					+ MonitoringConfiguration.SERVER_REST_PORT + MonitoringConfiguration.SERVER_REST_OVERHEAD_URL);
+			final HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+			overheadData.setEndTimestamp(System.currentTimeMillis());
+			String body = objectMapper.writeValueAsString(overheadData);
+			overheadData.clear();
+			conn.setDoOutput(true);
+			conn.setRequestMethod("POST");
+			conn.setDoInput(true);
+			conn.setUseCaches(false);
+			conn.setRequestProperty("Content-Type", "text/plain");
+			conn.setRequestProperty("Content-Length", String.valueOf(body.length()));
+
+			OutputStreamWriter writer = new OutputStreamWriter(conn.getOutputStream());
+			writer.write(body);
+			writer.flush();
+
+			final BufferedReader br = new BufferedReader(new InputStreamReader((conn.getInputStream())));
+
+			String output;
+			String all = null;
+			while ((output = br.readLine()) != null) {
+				all = all == null ? output : all + "\n" + output;
+			}
+			conn.disconnect();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
 
 	private void pollInstrumentationModel() {
@@ -291,6 +337,8 @@ public class ThreadMonitoringController {
 			if (!trace.isEmpty()) {
 				ServiceCallTrack parent = trace.peek();
 				parent.cumulatedMonitoringOverhead += track.cumulatedMonitoringOverhead + (System.nanoTime() - start);
+			} else {
+				overheadData.registerOverhead(serviceId, track.cumulatedMonitoringOverhead);
 			}
 
 			// clear current external call

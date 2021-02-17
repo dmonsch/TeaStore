@@ -57,6 +57,8 @@ public final class LoadBalancedCRUDOperations {
 	public static <T> long sendEntityForCreation(Service service, String endpointURI, Class<T> entityClass, T entity)
 			throws NotFoundException, LoadBalancerTimeoutException {
 
+		int persistenceReps = ServiceLoadBalancer.getEndpointCount(Service.PERSISTENCE);
+
 		if (entityClass == Order.class) {
 			ThreadMonitoringController.getInstance().enterService(
 					TeastoreMonitoringMetadata.SERVICE_REGISTRY_PERSIST_ORDER, LoadBalancedCRUDOperations.class);
@@ -80,8 +82,30 @@ public final class LoadBalancedCRUDOperations {
 		}
 
 		try {
-			return Optional.ofNullable(ServiceLoadBalancer.loadBalanceRESTOperation(service, endpointURI, entityClass,
-					client -> NonBalancedCRUDOperations.sendEntityForCreation(client, entity))).orElse(-1L);
+			if (entityClass == Order.class) {
+				return Optional.ofNullable(ServiceLoadBalancer.loadBalanceRESTOperation(service, endpointURI,
+						entityClass, (id, client) -> {
+							Order order = (Order) entity;
+							order.setMonitoringExternalId(TeastoreMonitoringMetadata.selectCorrespondingExternalId(
+									TeastoreMonitoringMetadata.persistenceReplicationMapping,
+									order.getMonitoringExternalId(), persistenceReps, id));
+							return NonBalancedCRUDOperations.sendEntityForCreation(client, entity);
+						})).orElse(-1L);
+			} else if (entityClass == OrderItem.class) {
+				return Optional.ofNullable(ServiceLoadBalancer.loadBalanceRESTOperation(service, endpointURI,
+						entityClass, (id, client) -> {
+							OrderItem order = (OrderItem) entity;
+							order.setMonitoringExternalId(TeastoreMonitoringMetadata.selectCorrespondingExternalId(
+									TeastoreMonitoringMetadata.persistenceReplicationMapping,
+									order.getMonitoringExternalId(), persistenceReps, id));
+							return NonBalancedCRUDOperations.sendEntityForCreation(client, entity);
+						})).orElse(-1L);
+			} else {
+				return Optional
+						.ofNullable(ServiceLoadBalancer.loadBalanceRESTOperation(service, endpointURI, entityClass,
+								(id, client) -> NonBalancedCRUDOperations.sendEntityForCreation(client, entity)))
+						.orElse(-1L);
+			}
 		} finally {
 			if (entityClass == Order.class) {
 				ThreadMonitoringController.getInstance()
@@ -112,8 +136,10 @@ public final class LoadBalancedCRUDOperations {
 	 */
 	public static <T> boolean sendEntityForUpdate(Service service, String endpointURI, Class<T> entityClass, long id,
 			T entity) throws NotFoundException, LoadBalancerTimeoutException {
-		return Optional.ofNullable(ServiceLoadBalancer.loadBalanceRESTOperation(service, endpointURI, entityClass,
-				client -> NonBalancedCRUDOperations.sendEntityForUpdate(client, id, entity))).orElse(false);
+		return Optional
+				.ofNullable(ServiceLoadBalancer.loadBalanceRESTOperation(service, endpointURI, entityClass,
+						(sid, client) -> NonBalancedCRUDOperations.sendEntityForUpdate(client, id, entity)))
+				.orElse(false);
 	}
 
 	/**
@@ -132,7 +158,7 @@ public final class LoadBalancedCRUDOperations {
 	public static <T> boolean deleteEntity(Service service, String endpointURI, Class<T> entityClass, long id)
 			throws NotFoundException, LoadBalancerTimeoutException {
 		return Optional.ofNullable(ServiceLoadBalancer.loadBalanceRESTOperation(service, endpointURI, entityClass,
-				client -> NonBalancedCRUDOperations.deleteEntity(client, id))).orElse(false);
+				(sid, client) -> NonBalancedCRUDOperations.deleteEntity(client, id))).orElse(false);
 	}
 
 	/**
@@ -151,7 +177,7 @@ public final class LoadBalancedCRUDOperations {
 	public static <T> T getEntity(Service service, String endpointURI, Class<T> entityClass, long id)
 			throws NotFoundException, LoadBalancerTimeoutException {
 		return ServiceLoadBalancer.loadBalanceRESTOperation(service, endpointURI, entityClass,
-				client -> NonBalancedCRUDOperations.getEntity(client, id));
+				(sid, client) -> NonBalancedCRUDOperations.getEntity(client, id));
 	}
 
 	/**
@@ -171,7 +197,7 @@ public final class LoadBalancedCRUDOperations {
 	public static <T> T getEntityWithProperties(Service service, String endpointURI, Class<T> entityClass,
 			String propertyName, String propertyValue) throws NotFoundException, LoadBalancerTimeoutException {
 		return ServiceLoadBalancer.loadBalanceRESTOperation(service, endpointURI, entityClass,
-				client -> NonBalancedCRUDOperations.getEntityWithProperty(client, propertyName, propertyValue));
+				(id, client) -> NonBalancedCRUDOperations.getEntityWithProperty(client, propertyName, propertyValue));
 	}
 
 	/**
@@ -192,7 +218,7 @@ public final class LoadBalancedCRUDOperations {
 	public static <T> List<T> getEntities(Service service, String endpointURI, Class<T> entityClass, int startIndex,
 			int limit) throws NotFoundException, LoadBalancerTimeoutException {
 		return ServiceLoadBalancer.loadBalanceRESTOperation(service, endpointURI, entityClass,
-				client -> NonBalancedCRUDOperations.getEntities(client, startIndex, limit));
+				(id, client) -> NonBalancedCRUDOperations.getEntities(client, startIndex, limit));
 	}
 
 	/**
@@ -218,7 +244,7 @@ public final class LoadBalancedCRUDOperations {
 	public static <T> List<T> getEntities(Service service, String endpointURI, Class<T> entityClass, String filterURI,
 			long filterId, int startIndex, int limit) throws NotFoundException, LoadBalancerTimeoutException {
 		return ServiceLoadBalancer.loadBalanceRESTOperation(service, endpointURI, entityClass,
-				client -> NonBalancedCRUDOperations.getEntities(client, filterURI, filterId, startIndex, limit));
+				(id, client) -> NonBalancedCRUDOperations.getEntities(client, filterURI, filterId, startIndex, limit));
 	}
 
 }

@@ -19,9 +19,6 @@ public class SessionBlob {
 	private List<OrderItem> orderItems = new LinkedList<OrderItem>();
 	private String message;
 	
-	private String monitoringTraceId;
-	private String monitoringExternalId;
-	
 	/**
 	 * Constructor, creates an empty order.
 	 */
@@ -123,21 +120,5 @@ public class SessionBlob {
 	 */
 	public void setOrderItems(List<OrderItem> orderItems) {
 		this.orderItems = orderItems;
-	}
-
-	public String getMonitoringTraceId() {
-		return monitoringTraceId;
-	}
-
-	public void setMonitoringTraceId(String monitoringTraceId) {
-		this.monitoringTraceId = monitoringTraceId;
-	}
-
-	public String getMonitoringExternalId() {
-		return monitoringExternalId;
-	}
-
-	public void setMonitoringExternalId(String monitoringExternalId) {
-		this.monitoringExternalId = monitoringExternalId;
 	}
 }

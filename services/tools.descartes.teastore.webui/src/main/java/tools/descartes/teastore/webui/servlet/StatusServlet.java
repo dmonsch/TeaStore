@@ -93,7 +93,7 @@ public class StatusServlet extends AbstractUIServlet {
    */
   private boolean isDatabaseFinished() {
     String finished = ServiceLoadBalancer.loadBalanceRESTOperation(Service.PERSISTENCE,
-        "generatedb", String.class, client -> client.getEndpointTarget().path("finished")
+        "generatedb", String.class, (id, client) -> client.getEndpointTarget().path("finished")
             .request(MediaType.TEXT_PLAIN).get().readEntity(String.class));
     if (finished != null) {
       return Boolean.parseBoolean(finished);

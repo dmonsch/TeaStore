@@ -64,12 +64,17 @@ public class PopularityBasedRecommender extends AbstractRecommender {
 	}
 
 	@Override
-	protected void executePreprocessing(long orders, long orderItems) {
+	protected void executePreprocessing(long orders, long orderItems, boolean monitor) {
 		ServiceParameters parameters = new ServiceParameters();
 		parameters.addValue("orders.VALUE", orders);
 		parameters.addValue("orderItems.VALUE", orderItems);
-		
-		ThreadMonitoringController.getInstance().enterService(TeastoreMonitoringMetadata.SERVICE_RECOMMENDER_POPULARITY_TRAIN, this);
+
+		ThreadMonitoringController.getInstance()
+				.enterService(TeastoreMonitoringMetadata.SERVICE_RECOMMENDER_POPULARITY_TRAIN, this);
+
+		ThreadMonitoringController.getInstance().enterInternalAction(
+				TeastoreMonitoringMetadata.INTERNAL_ACTION_RECOMMENDER_POPULARITY_TRAIN,
+				TeastoreMonitoringMetadata.RESOURCE_CPU);
 		// assigns each product a quantity
 		counts = new HashMap<>();
 		// calculate product frequencies
@@ -82,8 +87,12 @@ public class PopularityBasedRecommender extends AbstractRecommender {
 				}
 			}
 		}
-		
-		ThreadMonitoringController.getInstance().exitService(TeastoreMonitoringMetadata.SERVICE_RECOMMENDER_POPULARITY_TRAIN);
+		ThreadMonitoringController.getInstance().exitInternalAction(
+				TeastoreMonitoringMetadata.INTERNAL_ACTION_RECOMMENDER_POPULARITY_TRAIN,
+				TeastoreMonitoringMetadata.RESOURCE_CPU);
+
+		ThreadMonitoringController.getInstance()
+				.exitService(TeastoreMonitoringMetadata.SERVICE_RECOMMENDER_POPULARITY_TRAIN);
 
 	}
 }

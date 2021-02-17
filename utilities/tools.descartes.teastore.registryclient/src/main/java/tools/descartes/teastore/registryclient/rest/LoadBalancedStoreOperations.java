@@ -4,6 +4,9 @@ import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import dmodel.designtime.monitoring.controller.ServiceParameters;
 import dmodel.designtime.monitoring.controller.ThreadMonitoringController;
 import tools.descartes.teastore.registryclient.Service;
@@ -21,6 +24,7 @@ import tools.descartes.teastore.monitoring.TeastoreMonitoringMetadata;
  *
  */
 public final class LoadBalancedStoreOperations {
+	private static final Logger LOG = LoggerFactory.getLogger(LoadBalancedStoreOperations.class);
 
 	private LoadBalancedStoreOperations() {
 
@@ -47,33 +51,42 @@ public final class LoadBalancedStoreOperations {
 	public static SessionBlob placeOrder(SessionBlob blob, String addressName, String address1, String address2,
 			String creditCardCompany, String creditCardExpiryDate, long totalPriceInCents, String creditCardNumber,
 			long noOrders, long noItems) throws NotFoundException, LoadBalancerTimeoutException {
-
-		ThreadMonitoringController.getInstance().continueFromRemote(blob.getMonitoringTraceId(),
-				blob.getMonitoringExternalId());
-
 		ServiceParameters parameters = new ServiceParameters();
 		parameters.addValue("items.VALUE", blob.getOrderItems().size());
 		parameters.addValue("orders.VALUE", noOrders);
 		parameters.addValue("orderItems.VALUE", noItems);
+
+		// get replica counts
+		int replicasAuth = ServiceLoadBalancer.getEndpointCount(Service.AUTH);
 
 		ThreadMonitoringController.setSessionId(blob.getSID());
 		ThreadMonitoringController.getInstance().enterService(TeastoreMonitoringMetadata.SERVICE_REGISTRY_PLACE_ORDER,
 				LoadBalancedStoreOperations.class, parameters);
 		try {
 			Response r = ServiceLoadBalancer.loadBalanceRESTOperation(Service.AUTH, "useractions", Product.class,
-					client -> ResponseWrapper.wrap(HttpWrapper
-							.wrap(client.getEndpointTarget().path("placeorder").queryParam("addressName", addressName)
-									.queryParam("address1", address1).queryParam("address2", address2)
-									.queryParam("creditCardCompany", creditCardCompany)
-									.queryParam("creditCardNumber", creditCardNumber)
-									.queryParam("creditCardExpiryDate", creditCardExpiryDate)
-									.queryParam("totalPriceInCents", totalPriceInCents)
-									.queryParam("startTime", System.currentTimeMillis())
-									.queryParam("monitoringTraceId",
-											ThreadMonitoringController.getInstance().getCurrentTraceId())
-									.queryParam("monitoringExternalId",
-											TeastoreMonitoringMetadata.EXTERNAL_CALL_LOADBALANCER_AUTH_PLACE_ORDER))
-							.post(Entity.entity(blob, MediaType.APPLICATION_JSON), Response.class)));
+					(id, client) -> {
+						LOG.info("Auth replicas: " + replicasAuth);
+						LOG.info("Client ID: " + id);
+						LOG.info("Selected ID: " + TeastoreMonitoringMetadata.selectCorrespondingExternalId(
+								TeastoreMonitoringMetadata.authReplicationMappings,
+								TeastoreMonitoringMetadata.EXTERNAL_CALL_LOADBALANCER_AUTH_PLACE_ORDER, replicasAuth,
+								id));
+						return ResponseWrapper.wrap(HttpWrapper.wrap(client.getEndpointTarget().path("placeorder")
+								.queryParam("addressName", addressName).queryParam("address1", address1)
+								.queryParam("address2", address2).queryParam("creditCardCompany", creditCardCompany)
+								.queryParam("creditCardNumber", creditCardNumber)
+								.queryParam("creditCardExpiryDate", creditCardExpiryDate)
+								.queryParam("totalPriceInCents", totalPriceInCents)
+								.queryParam("startTime", System.currentTimeMillis())
+								.queryParam("monitoringTraceId",
+										ThreadMonitoringController.getInstance().getCurrentTraceId())
+								.queryParam("monitoringExternalId",
+										TeastoreMonitoringMetadata.selectCorrespondingExternalId(
+												TeastoreMonitoringMetadata.authReplicationMappings,
+												TeastoreMonitoringMetadata.EXTERNAL_CALL_LOADBALANCER_AUTH_PLACE_ORDER,
+												replicasAuth, id)))
+								.post(Entity.entity(blob, MediaType.APPLICATION_JSON), Response.class));
+					});
 
 			SessionBlob result = RestUtil.readThrowAndOrClose(r, SessionBlob.class);
 
@@ -86,8 +99,6 @@ public final class LoadBalancedStoreOperations {
 			ThreadMonitoringController.getInstance()
 					.setExternalCallId(TeastoreMonitoringMetadata.EXTERNAL_CALL_WEBUI_LOADBALANCER_TRAIN_RECOMMENDER);
 			LoadBalancedRecommenderOperations.trainRecommender(noOrders, noItems);
-			
-			ThreadMonitoringController.getInstance().detachFromRemote();
 		}
 	}
 
@@ -106,7 +117,7 @@ public final class LoadBalancedStoreOperations {
 			throws NotFoundException, LoadBalancerTimeoutException {
 		Response r = ServiceLoadBalancer
 				.loadBalanceRESTOperation(Service.AUTH, "useractions", Product.class,
-						client -> ResponseWrapper.wrap(HttpWrapper
+						(id, client) -> ResponseWrapper.wrap(HttpWrapper
 								.wrap(client.getEndpointTarget().path("login").queryParam("name", name)
 										.queryParam("password", password))
 								.post(Entity.entity(blob, MediaType.APPLICATION_JSON), Response.class)));
@@ -124,7 +135,7 @@ public final class LoadBalancedStoreOperations {
 	 */
 	public static SessionBlob logout(SessionBlob blob) throws NotFoundException, LoadBalancerTimeoutException {
 		Response r = ServiceLoadBalancer.loadBalanceRESTOperation(Service.AUTH, "useractions", Product.class,
-				client -> ResponseWrapper.wrap(HttpWrapper.wrap(client.getEndpointTarget().path("logout"))
+				(id, client) -> ResponseWrapper.wrap(HttpWrapper.wrap(client.getEndpointTarget().path("logout"))
 						.post(Entity.entity(blob, MediaType.APPLICATION_JSON), Response.class)));
 		return RestUtil.readThrowAndOrClose(r, SessionBlob.class);
 	}
@@ -140,7 +151,7 @@ public final class LoadBalancedStoreOperations {
 	 */
 	public static boolean isLoggedIn(SessionBlob blob) throws NotFoundException, LoadBalancerTimeoutException {
 		Response r = ServiceLoadBalancer.loadBalanceRESTOperation(Service.AUTH, "useractions", Product.class,
-				client -> ResponseWrapper.wrap(HttpWrapper.wrap(client.getEndpointTarget().path("isloggedin"))
+				(id, client) -> ResponseWrapper.wrap(HttpWrapper.wrap(client.getEndpointTarget().path("isloggedin"))
 						.post(Entity.entity(blob, MediaType.APPLICATION_JSON), Response.class)));
 		return RestUtil.readThrowAndOrClose(r, SessionBlob.class) != null;
 	}
@@ -159,8 +170,9 @@ public final class LoadBalancedStoreOperations {
 	public static SessionBlob addProductToCart(SessionBlob blob, long pid)
 			throws NotFoundException, LoadBalancerTimeoutException {
 		Response r = ServiceLoadBalancer.loadBalanceRESTOperation(Service.AUTH, "cart", Product.class,
-				client -> ResponseWrapper.wrap(HttpWrapper.wrap(client.getEndpointTarget().path("add").path("" + pid))
-						.post(Entity.entity(blob, MediaType.APPLICATION_JSON), Response.class)));
+				(id, client) -> ResponseWrapper
+						.wrap(HttpWrapper.wrap(client.getEndpointTarget().path("add").path("" + pid))
+								.post(Entity.entity(blob, MediaType.APPLICATION_JSON), Response.class)));
 		return RestUtil.readThrowAndOrClose(r, SessionBlob.class);
 	}
 
@@ -177,7 +189,7 @@ public final class LoadBalancedStoreOperations {
 	public static SessionBlob removeProductFromCart(SessionBlob blob, long pid)
 			throws NotFoundException, LoadBalancerTimeoutException {
 		Response r = ServiceLoadBalancer.loadBalanceRESTOperation(Service.AUTH, "cart", Product.class,
-				client -> ResponseWrapper
+				(id, client) -> ResponseWrapper
 						.wrap(HttpWrapper.wrap(client.getEndpointTarget().path("remove").path("" + pid))
 								.post(Entity.entity(blob, MediaType.APPLICATION_JSON), Response.class)));
 		return RestUtil.readThrowAndOrClose(r, SessionBlob.class);
@@ -196,8 +208,9 @@ public final class LoadBalancedStoreOperations {
 	 */
 	public static SessionBlob updateQuantity(SessionBlob blob, long pid, int quantity)
 			throws NotFoundException, LoadBalancerTimeoutException {
-		ThreadMonitoringController.getInstance().continueFromRemote(blob.getMonitoringTraceId(),
-				blob.getMonitoringExternalId());
+
+		// get replica count
+		int authReplicas = ServiceLoadBalancer.getEndpointCount(Service.AUTH);
 
 		ThreadMonitoringController.setSessionId(blob.getSID());
 		ThreadMonitoringController.getInstance().enterService(TeastoreMonitoringMetadata.SERVICE_REGISTRY_UPDATE_ORDER,
@@ -209,14 +222,21 @@ public final class LoadBalancedStoreOperations {
 
 		try {
 			Response r = ServiceLoadBalancer.loadBalanceRESTOperation(Service.AUTH, "cart", Product.class,
-					client -> ResponseWrapper.wrap(HttpWrapper
-							.wrap(client.getEndpointTarget().path("" + pid).queryParam("quantity", quantity)
-									.queryParam("monitoringTraceId",
-											ThreadMonitoringController.getInstance().getCurrentTraceId())
-									.queryParam("startTime", System.currentTimeMillis())
-									.queryParam("monitoringExternalId",
-											TeastoreMonitoringMetadata.EXTERNAL_CALL_LOADBALANCER_AUTH_UPDATE_ORDER))
-							.put(Entity.entity(blob, MediaType.APPLICATION_JSON), Response.class)));
+					(id, client) -> {
+						LOG.info("Auth replicas: " + authReplicas);
+						LOG.info("Client ID: " + id);
+						return ResponseWrapper.wrap(HttpWrapper.wrap(client.getEndpointTarget().path("" + pid)
+								.queryParam("quantity", quantity)
+								.queryParam("monitoringTraceId",
+										ThreadMonitoringController.getInstance().getCurrentTraceId())
+								.queryParam("startTime", System.currentTimeMillis()).queryParam("monitoringExternalId",
+										TeastoreMonitoringMetadata.selectCorrespondingExternalId(
+												TeastoreMonitoringMetadata.authReplicationMappings,
+												TeastoreMonitoringMetadata.EXTERNAL_CALL_LOADBALANCER_AUTH_UPDATE_ORDER,
+												authReplicas, id)
+
+								)).put(Entity.entity(blob, MediaType.APPLICATION_JSON), Response.class));
+					});
 
 			return RestUtil.readThrowAndOrClose(r, SessionBlob.class);
 		} finally {

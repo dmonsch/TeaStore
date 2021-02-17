@@ -29,7 +29,7 @@ public class EndpointClientCollection<T> {
 	
 	 //load balancer for each endpoint has REST clients for each server
     private ConcurrentHashMap<Server, RESTClient<T>> clients = new ConcurrentHashMap<>();
-    
+    private ConcurrentHashMap<Server, Integer> clientIdMapping = new ConcurrentHashMap<>();
     
     private final Class<T> entityClass;
 	private final Service targetService;
@@ -58,7 +58,15 @@ public class EndpointClientCollection<T> {
 		if (oldServers.size() == newServers.size() && newServers.containsAll(oldServers)) {
 			return;
 		}
+		int i = 0;
+		for (Server serv: newServers) {
+			clientIdMapping.put(serv, i++);
+		}
 		updateClients(newServers);
+	}
+	
+	public int getServerID(Server server) {
+		return clientIdMapping.get(server);
 	}
 	
 	/**

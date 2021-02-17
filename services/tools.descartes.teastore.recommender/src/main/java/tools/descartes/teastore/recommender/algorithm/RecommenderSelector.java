@@ -24,6 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import dmodel.designtime.monitoring.controller.ThreadMonitoringController;
+import tools.descartes.teastore.recommender.algorithm.impl.DummyRecommender;
 import tools.descartes.teastore.recommender.algorithm.impl.UseFallBackException;
 import tools.descartes.teastore.recommender.algorithm.impl.cf.PreprocessedSlopeOneRecommender;
 import tools.descartes.teastore.recommender.algorithm.impl.cf.SlopeOneRecommender;
@@ -54,12 +55,14 @@ public final class RecommenderSelector implements IRecommender {
 		recommenders.put("SlopeOne", SlopeOneRecommender.class);
 		recommenders.put("PreprocessedSlopeOne", PreprocessedSlopeOneRecommender.class);
 		recommenders.put("OrderBased", OrderBasedRecommender.class);
+		recommenders.put("Dummy", DummyRecommender.class);
 		
 		recommenderIdMapping = new HashMap<>();
 		recommenderIdMapping.put(0, "Popularity");
 		recommenderIdMapping.put(1, "SlopeOne");
 		recommenderIdMapping.put(2, "PreprocessedSlopeOne");
 		recommenderIdMapping.put(3, "OrderBased");
+		recommenderIdMapping.put(4, "Dummy");
 	}
 
 	/**

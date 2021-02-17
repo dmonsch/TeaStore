@@ -45,15 +45,15 @@ public class OrderItemEndpoint extends AbstractCRUDEndpoint<OrderItem> {
 		ThreadMonitoringController.getInstance().continueFromRemote(orderItem.getMonitoringTraceId(),
 				orderItem.getMonitoringExternalId());
 		ThreadMonitoringController.getInstance().logInternalAction(
-				TeastoreMonitoringMetadata.INTERNAL_ACTION_REGISTRY_PERSISTENCE_PERSIST_ORDER_REST,
+				TeastoreMonitoringMetadata.INTERNAL_ACTION_REGISTRY_PERSISTENCE_PERSIST_ORDER_ITEM_REST,
 				TeastoreMonitoringMetadata.RESOURCE_CPU, orderItem.getStartTime());
 
 		ThreadMonitoringController.getInstance()
 				.enterService(TeastoreMonitoringMetadata.SERVICE_PERSISTENCE_CREATE_ORDER_ITEM_ENTITY, this);
+		ThreadMonitoringController.getInstance().enterInternalAction(
+				TeastoreMonitoringMetadata.INTERNAL_ACTION_PERSIST_ORDER_ITEM,
+				TeastoreMonitoringMetadata.RESOURCE_CPU);
 		try {
-			ThreadMonitoringController.getInstance().enterInternalAction(
-					TeastoreMonitoringMetadata.INTERNAL_ACTION_PERSIST_ORDER_ITEM,
-					TeastoreMonitoringMetadata.RESOURCE_CPU);
 			if (DataGenerator.GENERATOR.isMaintenanceMode()) {
 				return -1L;
 			}

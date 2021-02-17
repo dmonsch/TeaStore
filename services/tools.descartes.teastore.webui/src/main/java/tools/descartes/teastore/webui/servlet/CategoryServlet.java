@@ -70,7 +70,7 @@ public class CategoryServlet extends AbstractUIServlet {
 
       int products = Integer.parseInt(ServiceLoadBalancer.loadBalanceRESTOperation(
           Service.PERSISTENCE, "products", Product.class,
-          client -> ResponseWrapper.wrap(HttpWrapper
+          (id, client) -> ResponseWrapper.wrap(HttpWrapper
               .wrap(client.getEndpointTarget().path("count").path(String.valueOf(categoryID)))
               .get()).readEntity(String.class)));
 

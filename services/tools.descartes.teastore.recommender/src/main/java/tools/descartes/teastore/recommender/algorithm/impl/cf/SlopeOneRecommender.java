@@ -159,25 +159,30 @@ public class SlopeOneRecommender extends AbstractRecommender {
 	}
 
 	@Override
-	protected void executePreprocessing(long orders, long orderItems) {
-		ServiceParameters parameters = new ServiceParameters();
-		parameters.addValue("orders.VALUE", orders);
-		parameters.addValue("orderItems.VALUE", orderItems);
-		ThreadMonitoringController.getInstance()
-				.enterService(TeastoreMonitoringMetadata.SERVICE_RECOMMENDER_SLOPE_ONE_TRAIN, this, parameters);
-		// The buying matrix is considered to be the rating
-		// i.e. the more buys, the higher the rating
-		ThreadMonitoringController.getInstance().enterInternalAction(
-				TeastoreMonitoringMetadata.INTERNAL_ACTION_RECOMMENDER_SLOPE_ONE_TRAIN,
-				TeastoreMonitoringMetadata.RESOURCE_CPU);
+	protected void executePreprocessing(long orders, long orderItems, boolean monitor) {
+		if (monitor) {
+			ServiceParameters parameters = new ServiceParameters();
+			parameters.addValue("orders.VALUE", orders);
+			parameters.addValue("orderItems.VALUE", orderItems);
+			ThreadMonitoringController.getInstance()
+					.enterService(TeastoreMonitoringMetadata.SERVICE_RECOMMENDER_SLOPE_ONE_TRAIN, this, parameters);
+			// The buying matrix is considered to be the rating
+			// i.e. the more buys, the higher the rating
+			ThreadMonitoringController.getInstance().enterInternalAction(
+					TeastoreMonitoringMetadata.INTERNAL_ACTION_RECOMMENDER_SLOPE_ONE_TRAIN,
+					TeastoreMonitoringMetadata.RESOURCE_CPU);
+		}
 
 		buildDifferencesMatrices(getUserBuyingMatrix());
-		ThreadMonitoringController.getInstance().exitInternalAction(
-				TeastoreMonitoringMetadata.INTERNAL_ACTION_RECOMMENDER_SLOPE_ONE_TRAIN,
-				TeastoreMonitoringMetadata.RESOURCE_CPU);
 
-		ThreadMonitoringController.getInstance()
-				.exitService(TeastoreMonitoringMetadata.SERVICE_RECOMMENDER_SLOPE_ONE_TRAIN);
+		if (monitor) {
+			ThreadMonitoringController.getInstance().exitInternalAction(
+					TeastoreMonitoringMetadata.INTERNAL_ACTION_RECOMMENDER_SLOPE_ONE_TRAIN,
+					TeastoreMonitoringMetadata.RESOURCE_CPU);
+
+			ThreadMonitoringController.getInstance()
+					.exitService(TeastoreMonitoringMetadata.SERVICE_RECOMMENDER_SLOPE_ONE_TRAIN);
+		}
 	}
 
 	/**

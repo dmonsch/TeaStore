@@ -157,7 +157,7 @@ public enum SetupController {
       try {
         result = ServiceLoadBalancer.loadBalanceRESTOperation(Service.PERSISTENCE, "generatedb",
             String.class,
-            client -> ResponseWrapper
+            (id, client) -> ResponseWrapper
                 .wrap(HttpWrapper.wrap(client.getService().path(client.getApplicationURI())
                     .path(client.getEndpointURI()).path("finished")).get()));
       } catch (NotFoundException notFound) {
@@ -193,7 +193,7 @@ public enum SetupController {
     try {
       result = ServiceLoadBalancer.loadBalanceRESTOperation(Service.PERSISTENCE, "products",
           Product.class,
-          client -> ResponseWrapper.wrap(HttpWrapper.wrap(client.getService()
+          (id, client) -> ResponseWrapper.wrap(HttpWrapper.wrap(client.getService()
               .path(client.getApplicationURI()).path(client.getEndpointURI()).path("category")
               .path(String.valueOf(category.getId())).queryParam("start", 0).queryParam("max", -1))
               .get()));
@@ -226,7 +226,7 @@ public enum SetupController {
     try {
       result = ServiceLoadBalancer.loadBalanceRESTOperation(Service.PERSISTENCE, "categories",
           Category.class,
-          client -> ResponseWrapper.wrap(HttpWrapper.wrap(
+          (id, client) -> ResponseWrapper.wrap(HttpWrapper.wrap(
               client.getService().path(client.getApplicationURI()).path(client.getEndpointURI()))
               .get()));
     } catch (NotFoundException notFound) {

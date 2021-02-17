@@ -16,6 +16,7 @@ package tools.descartes.teastore.recommender.algorithm.impl;
 import java.util.ArrayList;
 import java.util.List;
 
+import dmodel.designtime.monitoring.controller.ServiceParameters;
 import dmodel.designtime.monitoring.controller.ThreadMonitoringController;
 import tools.descartes.teastore.monitoring.TeastoreMonitoringMetadata;
 import tools.descartes.teastore.recommender.algorithm.AbstractRecommender;
@@ -53,6 +54,17 @@ public class DummyRecommender extends AbstractRecommender {
 		ThreadMonitoringController.getInstance()
 				.exitService(TeastoreMonitoringMetadata.SERVICE_RECOMMENDER_DUMMY_RECOMMEND);
 		return recommended;
+	}
+	
+	@Override
+	protected void executePreprocessing(long orders, long orderItems, boolean monitor) {
+		ServiceParameters parameters = new ServiceParameters();
+		parameters.addValue("orders.VALUE", orders);
+		parameters.addValue("orderItems.VALUE", orderItems);
+		ThreadMonitoringController.getInstance()
+				.enterService(TeastoreMonitoringMetadata.SERVICE_RECOMMENDER_DUMMY_TRAIN, this, parameters);
+		ThreadMonitoringController.getInstance()
+				.exitService(TeastoreMonitoringMetadata.SERVICE_RECOMMENDER_DUMMY_TRAIN);
 	}
 
 }

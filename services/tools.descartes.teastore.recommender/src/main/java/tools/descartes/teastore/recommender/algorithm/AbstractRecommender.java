@@ -112,7 +112,7 @@ public abstract class AbstractRecommender implements IRecommender {
 				TeastoreMonitoringMetadata.RESOURCE_CPU);
 		
 		ThreadMonitoringController.getInstance().setExternalCallId(TeastoreMonitoringMetadata.EXTERNAL_CALL_RECOMMENDER_STRATEGY_TRAIN);
-		executePreprocessing(orders.size(), orderItems.size());
+		executePreprocessing(orders.size(), orderItems.size(), true);
 		
 		LOG.info("Training recommender finished. Training took: " + (System.currentTimeMillis() - tic) + "ms.");
 		trainingFinished = true;
@@ -122,7 +122,7 @@ public abstract class AbstractRecommender implements IRecommender {
 	 * Triggers implementing classes if they want to execute a pre-processing step
 	 * during {@link AbstractRecommender#train(List, List)}.
 	 */
-	protected void executePreprocessing(long orders, long orderItems) {
+	protected void executePreprocessing(long orders, long orderItems, boolean monitor) {
 		// do nothing
 	}
 

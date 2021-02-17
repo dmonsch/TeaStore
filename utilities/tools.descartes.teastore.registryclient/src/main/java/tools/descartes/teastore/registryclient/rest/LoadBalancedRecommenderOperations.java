@@ -50,7 +50,7 @@ public final class LoadBalancedRecommenderOperations {
 
 		try {
 			Response r = ServiceLoadBalancer.loadBalanceRESTOperation(Service.RECOMMENDER, "recommend", Category.class,
-					client -> ResponseWrapper.wrap(HttpWrapper
+					(id, client) -> ResponseWrapper.wrap(HttpWrapper
 							.wrap(client.getEndpointTarget().queryParam("uid", uid)
 									.queryParam(
 											"monitoringTraceId",
@@ -94,7 +94,7 @@ public final class LoadBalancedRecommenderOperations {
 
 		try {
 			ServiceLoadBalancer.loadBalanceRESTOperation(Service.RECOMMENDER, "train", String.class,
-					client -> ResponseWrapper.wrap(HttpWrapper
+					(id, client) -> ResponseWrapper.wrap(HttpWrapper
 							.wrap(client.getEndpointTarget()
 									.queryParam("monitoringTraceId",
 											ThreadMonitoringController.getInstance().getCurrentTraceId())
