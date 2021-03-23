@@ -24,6 +24,8 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 
+import cipm.consistency.bridge.monitoring.controller.HostNameFactory;
+
 /**
  * Rest endpoint for the registry.
  * @author Simon
@@ -74,6 +76,12 @@ public class RegistryREST {
 	public Response getInstances(@PathParam("name") final String name) {
 		List<String> locations = Registry.getRegistryInstance().getLocations(name);
 		return Response.status(Response.Status.OK).entity(locations).build();
+	}
+	
+	@GET
+	@Path("hostname")
+	public Response getHostname() {
+		return Response.status(Response.Status.OK).entity(HostNameFactory.generateHostId()).build();
 	}
 
 }

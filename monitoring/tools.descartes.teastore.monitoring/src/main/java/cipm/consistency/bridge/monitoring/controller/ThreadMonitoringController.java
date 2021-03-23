@@ -266,6 +266,11 @@ public class ThreadMonitoringController {
 		this.enterService(serviceId, exId, ServiceParameters.EMPTY);
 	}
 
+	public synchronized void enterService(final String serviceId, final Object exId,
+			final ServiceParameters serviceParameters) {
+		this.enterService(serviceId, exId, serviceParameters, null);
+	}
+
 	/**
 	 * Calls this method after entering the service.
 	 * {@link ThreadMonitoringController#exitService()} must be called before
@@ -276,7 +281,7 @@ public class ThreadMonitoringController {
 	 * @param serviceParameters The service parameter values.
 	 */
 	public synchronized void enterService(final String serviceId, final Object exId,
-			final ServiceParameters serviceParameters) {
+			final ServiceParameters serviceParameters, String forcedHostId) {
 		if (!monitoredIdsInited || monitoredIds.contains(serviceId)) {
 			long start = analysis.enterOverhead();
 
@@ -291,15 +296,16 @@ public class ThreadMonitoringController {
 				if (remoteStack.get().isPresent()) {
 					nTrack = new ServiceCallTrack(serviceId, getSessionId(), serviceParameters,
 							String.valueOf(System.identityHashCode(exId)), remoteStack.get().value.getLeft(),
-							remoteStack.get().value.getRight());
+							remoteStack.get().value.getRight(), forcedHostId);
 					this.detachFromRemote();
 				} else {
 					nTrack = new ServiceCallTrack(serviceId, getSessionId(), serviceParameters,
-							String.valueOf(System.identityHashCode(exId)), null, externalCallId);
+							String.valueOf(System.identityHashCode(exId)), null, externalCallId, forcedHostId);
 				}
 			} else {
 				nTrack = new ServiceCallTrack(serviceId, trace.peek().sessionId, serviceParameters,
-						String.valueOf(System.identityHashCode(exId)), trace.peek().serviceExecutionId, externalCallId);
+						String.valueOf(System.identityHashCode(exId)), trace.peek().serviceExecutionId, externalCallId,
+						forcedHostId);
 			}
 
 			// push it
@@ -329,10 +335,12 @@ public class ThreadMonitoringController {
 
 			// exit current trace
 			ServiceCallTrack track = trace.pop();
-			MONITORING_CONTROLLER.newMonitoringRecord(new ServiceCallRecord(track.sessionId, track.serviceExecutionId,
-					HostNameFactory.generateHostId(), HostNameFactory.generateHostName(), track.serviceId,
-					track.serviceParameters.toString(), track.callerServiceExecutionId, track.externalCallId,
-					track.executionContext, track.serviceStartTime, end - track.cumulatedMonitoringOverhead));
+			MONITORING_CONTROLLER.newMonitoringRecord(
+					new ServiceCallRecord(track.sessionId, track.serviceExecutionId, HostNameFactory.generateHostId(),
+							track.forcedHostId == null ? HostNameFactory.generateHostName() : track.forcedHostId,
+							track.serviceId, track.serviceParameters.toString(), track.callerServiceExecutionId,
+							track.externalCallId, track.executionContext, track.serviceStartTime,
+							end - track.cumulatedMonitoringOverhead));
 
 			if (!trace.isEmpty()) {
 				ServiceCallTrack parent = trace.peek();
@@ -522,11 +530,12 @@ public class ThreadMonitoringController {
 		private String callerServiceExecutionId;
 		private String executionContext;
 		private String externalCallId;
+		private String forcedHostId;
 
 		private long cumulatedMonitoringOverhead;
 
 		public ServiceCallTrack(String serviceId, String sessionId, ServiceParameters serviceParameters,
-				String executionContext, String parentId, String externalCallId) {
+				String executionContext, String parentId, String externalCallId, String forcedHostId) {
 			this.serviceId = serviceId;
 			this.sessionId = sessionId;
 			this.serviceParameters = serviceParameters;
@@ -536,6 +545,7 @@ public class ThreadMonitoringController {
 			this.executionContext = executionContext;
 			this.serviceExecutionId = ThreadMonitoringController.this.idFactory.createId();
 			this.cumulatedMonitoringOverhead = 0;
+			this.forcedHostId = forcedHostId;
 		}
 
 	}

@@ -16,6 +16,7 @@ package tools.descartes.teastore.registryclient.loadbalancers;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -64,6 +65,8 @@ public final class ServiceLoadBalancer {
 	private final RetryHandler retryHandler = new DefaultLoadBalancerRetryHandler(0, 2, true);
 
 	private ReadWriteLock loadBalancerModificationLock = new ReentrantReadWriteLock();
+	
+	private static Optional<String> hostNameCache = Optional.empty();
 
 	// private constructor
 	private ServiceLoadBalancer(final Service targetService) {
@@ -89,6 +92,20 @@ public final class ServiceLoadBalancer {
 	
 	public static int getEndpointCount(Service service) {
 		return getServiceLoadBalancer(service).getEndpointCount();
+	}
+	
+	public static String getRegistryHostname() {
+		if (hostNameCache.isPresent()) {
+			return hostNameCache.get();
+		} else {
+			String hName = RegistryClient.getClient().getHostNameRegistry();
+			if (hName != null) {
+				hostNameCache = Optional.of(hName);
+				return hName;
+			}
+			System.out.println("PROBLEMATIC! REGISTRY HOST IS NULL!");
+			return null;
+		}
 	}
 	
 	private int getEndpointCount() {

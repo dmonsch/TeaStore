@@ -16,6 +16,7 @@ package tools.descartes.teastore.registryclient.rest;
 import java.util.List;
 import java.util.Optional;
 
+import cipm.consistency.bridge.monitoring.controller.ServiceParameters;
 import cipm.consistency.bridge.monitoring.controller.ThreadMonitoringController;
 import tools.descartes.teastore.entities.Order;
 import tools.descartes.teastore.entities.OrderItem;
@@ -61,7 +62,8 @@ public final class LoadBalancedCRUDOperations {
 
 		if (entityClass == Order.class) {
 			ThreadMonitoringController.getInstance().enterService(
-					TeastoreMonitoringMetadata.SERVICE_REGISTRY_PERSIST_ORDER, LoadBalancedCRUDOperations.class);
+					TeastoreMonitoringMetadata.SERVICE_REGISTRY_PERSIST_ORDER, LoadBalancedCRUDOperations.class,
+					ServiceParameters.EMPTY, ServiceLoadBalancer.getRegistryHostname());
 
 			// set external
 			Order order = (Order) entity;
@@ -71,7 +73,8 @@ public final class LoadBalancedCRUDOperations {
 			order.setStartTime(System.currentTimeMillis());
 		} else if (entityClass == OrderItem.class) {
 			ThreadMonitoringController.getInstance().enterService(
-					TeastoreMonitoringMetadata.SERVICE_REGISTRY_PERSIST_ORDER_ITEM, LoadBalancedCRUDOperations.class);
+					TeastoreMonitoringMetadata.SERVICE_REGISTRY_PERSIST_ORDER_ITEM, LoadBalancedCRUDOperations.class,
+					ServiceParameters.EMPTY, ServiceLoadBalancer.getRegistryHostname());
 
 			// set external
 			OrderItem item = (OrderItem) entity;
