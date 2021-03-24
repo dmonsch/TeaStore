@@ -15,6 +15,9 @@ public class HostNameFactory {
 
 	public static synchronized final String generateHostName() {
 		if (!CURRENT_HOSTNAME.isPresent()) {
+			return generateHostId();
+		}
+		if (!CURRENT_HOSTNAME.isPresent()) {
 			// build it
 			buildHostname();
 		}
