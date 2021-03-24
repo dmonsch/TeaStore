@@ -28,6 +28,7 @@ import cipm.consistency.bridge.monitoring.controller.HostNameFactory;
 
 /**
  * Rest endpoint for the registry.
+ * 
  * @author Simon
  */
 @Path("services")
@@ -36,7 +37,8 @@ public class RegistryREST {
 
 	/**
 	 * Register a service at a location.
-	 * @param name Service name
+	 * 
+	 * @param name     Service name
 	 * @param location service location
 	 * @return boolean success indicator
 	 */
@@ -52,7 +54,8 @@ public class RegistryREST {
 
 	/**
 	 * Unregister a service at a location.
-	 * @param name Service name
+	 * 
+	 * @param name     Service name
 	 * @param location service location
 	 * @return boolean success indicator
 	 */
@@ -68,6 +71,7 @@ public class RegistryREST {
 
 	/**
 	 * Get list of all instances of a service.
+	 * 
 	 * @param name service name
 	 * @return list of all instance
 	 */
@@ -77,11 +81,17 @@ public class RegistryREST {
 		List<String> locations = Registry.getRegistryInstance().getLocations(name);
 		return Response.status(Response.Status.OK).entity(locations).build();
 	}
-	
+
+	@GET
+	@Path("hostid")
+	public Response getHostID() {
+		return Response.status(Response.Status.OK).entity(HostNameFactory.generateHostId()).build();
+	}
+
 	@GET
 	@Path("hostname")
-	public Response getHostname() {
-		return Response.status(Response.Status.OK).entity(HostNameFactory.generateHostId()).build();
+	public Response getHostName() {
+		return Response.status(Response.Status.OK).entity(HostNameFactory.generateHostName()).build();
 	}
 
 }

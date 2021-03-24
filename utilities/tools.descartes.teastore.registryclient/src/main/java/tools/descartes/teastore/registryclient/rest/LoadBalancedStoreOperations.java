@@ -61,7 +61,8 @@ public final class LoadBalancedStoreOperations {
 
 		ThreadMonitoringController.setSessionId(blob.getSID());
 		ThreadMonitoringController.getInstance().enterService(TeastoreMonitoringMetadata.SERVICE_REGISTRY_PLACE_ORDER,
-				LoadBalancedStoreOperations.class, parameters, ServiceLoadBalancer.getRegistryHostname());
+				LoadBalancedStoreOperations.class, parameters, ServiceLoadBalancer.getRegistryHostID(),
+				ServiceLoadBalancer.getRegistryHostName());
 		try {
 			Response r = ServiceLoadBalancer.loadBalanceRESTOperation(Service.AUTH, "useractions", Product.class,
 					(id, client) -> {
@@ -214,7 +215,7 @@ public final class LoadBalancedStoreOperations {
 
 		ThreadMonitoringController.setSessionId(blob.getSID());
 		ThreadMonitoringController.getInstance().enterService(TeastoreMonitoringMetadata.SERVICE_REGISTRY_UPDATE_ORDER,
-				LoadBalancedStoreOperations.class, ServiceParameters.EMPTY, ServiceLoadBalancer.getRegistryHostname());
+				LoadBalancedStoreOperations.class, ServiceParameters.EMPTY, ServiceLoadBalancer.getRegistryHostID(), ServiceLoadBalancer.getRegistryHostName());
 
 		if (quantity < 1) {
 			throw new IllegalArgumentException("Quantity has to be larger than 1");

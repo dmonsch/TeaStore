@@ -46,7 +46,7 @@ public final class LoadBalancedRecommenderOperations {
 		parameters.addValue("items.VALUE", order.size());
 		ThreadMonitoringController.getInstance().enterService(
 				TeastoreMonitoringMetadata.SERVICE_REGISTRY_RECOMMEND_PRODUCT, LoadBalancedRecommenderOperations.class,
-				parameters, ServiceLoadBalancer.getRegistryHostname());
+				parameters, ServiceLoadBalancer.getRegistryHostID(), ServiceLoadBalancer.getRegistryHostName());
 
 		try {
 			Response r = ServiceLoadBalancer.loadBalanceRESTOperation(Service.RECOMMENDER, "recommend", Category.class,
@@ -90,7 +90,7 @@ public final class LoadBalancedRecommenderOperations {
 
 		ThreadMonitoringController.getInstance().enterService(
 				TeastoreMonitoringMetadata.SERVICE_REGISTRY_TRAIN_RECOMMENDER, LoadBalancedRecommenderOperations.class,
-				parameters, ServiceLoadBalancer.getRegistryHostname());
+				parameters, ServiceLoadBalancer.getRegistryHostID(), ServiceLoadBalancer.getRegistryHostName());
 
 		try {
 			ServiceLoadBalancer.loadBalanceRESTOperation(Service.RECOMMENDER, "train", String.class,

@@ -66,6 +66,7 @@ public final class ServiceLoadBalancer {
 
 	private ReadWriteLock loadBalancerModificationLock = new ReentrantReadWriteLock();
 	
+	private static Optional<String> hostIDCache = Optional.empty();
 	private static Optional<String> hostNameCache = Optional.empty();
 
 	// private constructor
@@ -94,13 +95,27 @@ public final class ServiceLoadBalancer {
 		return getServiceLoadBalancer(service).getEndpointCount();
 	}
 	
-	public static String getRegistryHostname() {
+	public static String getRegistryHostName() {
 		if (hostNameCache.isPresent()) {
 			return hostNameCache.get();
 		} else {
 			String hName = RegistryClient.getClient().getHostNameRegistry();
 			if (hName != null) {
 				hostNameCache = Optional.of(hName);
+				return hName;
+			}
+			System.out.println("PROBLEMATIC! REGISTRY HOST IS NULL!");
+			return null;
+		}
+	}
+	
+	public static String getRegistryHostID() {
+		if (hostIDCache.isPresent()) {
+			return hostIDCache.get();
+		} else {
+			String hName = RegistryClient.getClient().getHostIDRegistry();
+			if (hName != null) {
+				hostIDCache = Optional.of(hName);
 				return hName;
 			}
 			System.out.println("PROBLEMATIC! REGISTRY HOST IS NULL!");

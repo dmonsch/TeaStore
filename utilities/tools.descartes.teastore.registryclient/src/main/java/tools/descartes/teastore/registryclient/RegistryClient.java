@@ -198,6 +198,19 @@ public class RegistryClient {
 		return serverList;
 	}
 
+	public String getHostIDRegistry() {
+		String hostIdRegistry = null;
+		try {
+			Response response = getRESTClient(5000).target(registryRESTURL).path("hostid")
+					.request(MediaType.APPLICATION_JSON).get();
+			hostIdRegistry = response.readEntity(String.class);
+		} catch (ProcessingException e) {
+			return null;
+		}
+		
+		return hostIdRegistry;
+	}
+	
 	public String getHostNameRegistry() {
 		String hostNameRegistry = null;
 		try {

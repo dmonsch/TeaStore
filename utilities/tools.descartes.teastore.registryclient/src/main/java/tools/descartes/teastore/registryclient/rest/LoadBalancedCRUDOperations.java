@@ -63,7 +63,8 @@ public final class LoadBalancedCRUDOperations {
 		if (entityClass == Order.class) {
 			ThreadMonitoringController.getInstance().enterService(
 					TeastoreMonitoringMetadata.SERVICE_REGISTRY_PERSIST_ORDER, LoadBalancedCRUDOperations.class,
-					ServiceParameters.EMPTY, ServiceLoadBalancer.getRegistryHostname());
+					ServiceParameters.EMPTY, ServiceLoadBalancer.getRegistryHostID(),
+					ServiceLoadBalancer.getRegistryHostName());
 
 			// set external
 			Order order = (Order) entity;
@@ -74,7 +75,8 @@ public final class LoadBalancedCRUDOperations {
 		} else if (entityClass == OrderItem.class) {
 			ThreadMonitoringController.getInstance().enterService(
 					TeastoreMonitoringMetadata.SERVICE_REGISTRY_PERSIST_ORDER_ITEM, LoadBalancedCRUDOperations.class,
-					ServiceParameters.EMPTY, ServiceLoadBalancer.getRegistryHostname());
+					ServiceParameters.EMPTY, ServiceLoadBalancer.getRegistryHostID(),
+					ServiceLoadBalancer.getRegistryHostName());
 
 			// set external
 			OrderItem item = (OrderItem) entity;
