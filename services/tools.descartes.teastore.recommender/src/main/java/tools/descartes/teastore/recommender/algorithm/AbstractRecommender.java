@@ -14,6 +14,7 @@
 package tools.descartes.teastore.recommender.algorithm;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -24,7 +25,6 @@ import java.util.TreeMap;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.eclipse.jetty.util.ConcurrentHashSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -103,7 +103,7 @@ public abstract class AbstractRecommender implements IRecommender {
 		userItemSets = new ConcurrentHashMap<>();
 		for (Order order : itemSets.keySet()) {
 			if (!userItemSets.containsKey(order.getUserId())) {
-				userItemSets.put(order.getUserId(), new ConcurrentHashSet<OrderItemSet>());
+				userItemSets.put(order.getUserId(), ConcurrentHashMap.newKeySet());
 			}
 			itemSets.get(order).setUserId(order.getUserId());
 			userItemSets.get(order.getUserId()).add(itemSets.get(order));
