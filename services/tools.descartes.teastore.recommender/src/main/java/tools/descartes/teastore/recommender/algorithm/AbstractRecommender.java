@@ -22,7 +22,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentHashMap;
 
+import org.eclipse.jetty.util.ConcurrentHashSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -74,11 +76,11 @@ public abstract class AbstractRecommender implements IRecommender {
 		ThreadMonitoringController.getInstance().enterInternalAction(
 				TeastoreMonitoringMetadata.INTERNAL_ACTION_RECOMMENDER_PREPARE_TRAIN,
 				TeastoreMonitoringMetadata.RESOURCE_CPU);
-		
+
 		long tic = System.currentTimeMillis();
 		totalProducts = new HashSet<>();
 		// first create order mapping unorderized
-		Map<Long, OrderItemSet> unOrderizeditemSets = new HashMap<>();
+		Map<Long, OrderItemSet> unOrderizeditemSets = new ConcurrentHashMap<>();
 		for (OrderItem orderItem : orderItems) {
 			if (!unOrderizeditemSets.containsKey(orderItem.getOrderId())) {
 				unOrderizeditemSets.put(orderItem.getOrderId(), new OrderItemSet());
@@ -93,15 +95,15 @@ public abstract class AbstractRecommender implements IRecommender {
 			}
 		}
 		// now map each id with the corresponding order
-		Map<Order, OrderItemSet> itemSets = new HashMap<>();
+		Map<Order, OrderItemSet> itemSets = new ConcurrentHashMap<>();
 		for (Long orderid : unOrderizeditemSets.keySet()) {
 			Order realOrder = findOrder(orders, orderid);
 			itemSets.put(realOrder, unOrderizeditemSets.get(orderid));
 		}
-		userItemSets = new HashMap<>();
+		userItemSets = new ConcurrentHashMap<>();
 		for (Order order : itemSets.keySet()) {
 			if (!userItemSets.containsKey(order.getUserId())) {
-				userItemSets.put(order.getUserId(), new HashSet<OrderItemSet>());
+				userItemSets.put(order.getUserId(), new ConcurrentHashSet<OrderItemSet>());
 			}
 			itemSets.get(order).setUserId(order.getUserId());
 			userItemSets.get(order.getUserId()).add(itemSets.get(order));
@@ -110,10 +112,11 @@ public abstract class AbstractRecommender implements IRecommender {
 		ThreadMonitoringController.getInstance().exitInternalAction(
 				TeastoreMonitoringMetadata.INTERNAL_ACTION_RECOMMENDER_PREPARE_TRAIN,
 				TeastoreMonitoringMetadata.RESOURCE_CPU);
-		
-		ThreadMonitoringController.getInstance().setExternalCallId(TeastoreMonitoringMetadata.EXTERNAL_CALL_RECOMMENDER_STRATEGY_TRAIN);
+
+		ThreadMonitoringController.getInstance()
+				.setExternalCallId(TeastoreMonitoringMetadata.EXTERNAL_CALL_RECOMMENDER_STRATEGY_TRAIN);
 		executePreprocessing(orders.size(), orderItems.size(), true);
-		
+
 		LOG.info("Training recommender finished. Training took: " + (System.currentTimeMillis() - tic) + "ms.");
 		trainingFinished = true;
 	}
