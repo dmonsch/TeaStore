@@ -34,6 +34,7 @@ import tools.descartes.teastore.entities.OrderItem;
 import tools.descartes.teastore.entities.Product;
 import tools.descartes.teastore.entities.User;
 import tools.descartes.teastore.monitoring.TeastoreMonitoringMetadata;
+import tools.descartes.teastore.recommender.algorithm.impl.DummyRecommender;
 
 /**
  * Abstract class for basic recommendation functionality.
@@ -70,6 +71,8 @@ public abstract class AbstractRecommender implements IRecommender {
 	 * phase.
 	 */
 	private Set<Long> totalProducts;
+	
+	private DummyRecommender internalDummy = new DummyRecommender();
 
 	@Override
 	public void train(List<OrderItem> orderItems, List<Order> orders) {
@@ -133,7 +136,7 @@ public abstract class AbstractRecommender implements IRecommender {
 	public List<Long> recommendProducts(Long userid, List<OrderItem> currentItems)
 			throws UnsupportedOperationException {
 		if (!trainingFinished) {
-			throw new UnsupportedOperationException("This instance is not fully trained yet.");
+			return internalDummy.recommendProducts(userid, currentItems);
 		}
 		if (currentItems.isEmpty()) {
 			// if input is empty return empty list
