@@ -101,15 +101,19 @@ public abstract class AbstractRecommender implements IRecommender {
 			Order realOrder = findOrder(orders, orderid);
 			itemSets.put(realOrder, unOrderizeditemSets.get(orderid));
 		}
-		userItemSets = new ConcurrentHashMap<>();
-		for (Order order : itemSets.keySet()) {
-			if (!userItemSets.containsKey(order.getUserId())) {
-				userItemSets.put(order.getUserId(), ConcurrentHashMap.newKeySet());
+
+		synchronized (this) {
+			userItemSets = new ConcurrentHashMap<>();
+			for (Order order : itemSets.keySet()) {
+				if (!userItemSets.containsKey(order.getUserId())) {
+					userItemSets.put(order.getUserId(), ConcurrentHashMap.newKeySet());
+				}
+				itemSets.get(order).setUserId(order.getUserId());
+				userItemSets.get(order.getUserId()).add(itemSets.get(order));
 			}
-			itemSets.get(order).setUserId(order.getUserId());
-			userItemSets.get(order.getUserId()).add(itemSets.get(order));
+			userBuyingMatrix = createUserBuyingMatrix(userItemSets);
 		}
-		userBuyingMatrix = createUserBuyingMatrix(userItemSets);
+
 		ThreadMonitoringController.getInstance().exitInternalAction(
 				TeastoreMonitoringMetadata.INTERNAL_ACTION_RECOMMENDER_PREPARE_TRAIN,
 				TeastoreMonitoringMetadata.RESOURCE_CPU);
