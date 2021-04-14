@@ -191,7 +191,7 @@ public class SlopeOneRecommender extends AbstractRecommender {
 	 * 
 	 * @param data The user rating matrix
 	 */
-	private void buildDifferencesMatrices(Map<Long, Map<Long, Double>> userRatingMatrix) {
+	private synchronized void buildDifferencesMatrices(Map<Long, Map<Long, Double>> userRatingMatrix) {
 		for (Map<Long, Double> uservalues : userRatingMatrix.values()) {
 			for (Entry<Long, Double> singleRating : uservalues.entrySet()) {
 				// if not present -> create
@@ -226,6 +226,11 @@ public class SlopeOneRecommender extends AbstractRecommender {
 
 					// get the diff value of this user
 					double userdiff = singleRating.getValue() - otherRating.getValue();
+					if (otherRating == null || singleRating == null || frequencies.get(singleRating.getKey()) == null) {
+						System.out.println(otherRating == null);
+						System.out.println(singleRating == null);
+						System.out.println(frequencies.get(singleRating.getKey()) == null);
+					}
 					frequencies.get(singleRating.getKey()).put(otherRating.getKey(), currCount + 1);
 					differences.get(singleRating.getKey()).put(otherRating.getKey(), currDiff + userdiff);
 				}
