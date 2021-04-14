@@ -71,8 +71,6 @@ public abstract class AbstractRecommender implements IRecommender {
 	 * phase.
 	 */
 	private Set<Long> totalProducts;
-	
-	private DummyRecommender internalDummy = new DummyRecommender();
 
 	@Override
 	public void train(List<OrderItem> orderItems, List<Order> orders) {
@@ -136,7 +134,13 @@ public abstract class AbstractRecommender implements IRecommender {
 	public List<Long> recommendProducts(Long userid, List<OrderItem> currentItems)
 			throws UnsupportedOperationException {
 		if (!trainingFinished) {
-			return internalDummy.recommendProducts(userid, currentItems);
+			if (currentItems.isEmpty()) {
+				return new LinkedList<>();
+			} else {
+				List<Long> recommended = new ArrayList<Long>();
+				recommended.add(-1L);
+				return recommended;
+			}
 		}
 		if (currentItems.isEmpty()) {
 			// if input is empty return empty list
