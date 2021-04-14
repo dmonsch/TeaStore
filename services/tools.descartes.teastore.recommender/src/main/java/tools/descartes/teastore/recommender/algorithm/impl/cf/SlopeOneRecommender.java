@@ -202,9 +202,11 @@ public class SlopeOneRecommender extends AbstractRecommender {
 				// for all other ratings of that user
 				for (Entry<Long, Double> otherRating : uservalues.entrySet()) {
 					int currCount = 0;
-					System.out.println(otherRating == null);
-					System.out.println(singleRating == null);
-					System.out.println(frequencies.get(singleRating.getKey()) == null);
+					if (otherRating == null || singleRating == null || frequencies.get(singleRating.getKey()) == null) {
+						System.out.println(otherRating == null);
+						System.out.println(singleRating == null);
+						System.out.println(frequencies.get(singleRating.getKey()) == null);
+					}
 					Integer count = frequencies.get(singleRating.getKey()).get(otherRating.getKey());
 					if (count != null) {
 						// count is != null, if the key is actually found
