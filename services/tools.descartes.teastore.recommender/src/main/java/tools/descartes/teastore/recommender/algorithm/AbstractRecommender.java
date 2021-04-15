@@ -79,7 +79,8 @@ public abstract class AbstractRecommender implements IRecommender {
 				TeastoreMonitoringMetadata.RESOURCE_CPU);
 
 		long tic = System.currentTimeMillis();
-		totalProducts = new HashSet<>();
+		
+		totalProducts = ConcurrentHashMap.newKeySet();
 		// first create order mapping unorderized
 		Map<Long, OrderItemSet> unOrderizeditemSets = new ConcurrentHashMap<>();
 		for (OrderItem orderItem : orderItems) {
