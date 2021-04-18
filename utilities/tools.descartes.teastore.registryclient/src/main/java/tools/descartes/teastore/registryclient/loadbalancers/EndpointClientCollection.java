@@ -13,9 +13,14 @@
  */
 package tools.descartes.teastore.registryclient.loadbalancers;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import com.netflix.loadbalancer.Server;
 import tools.descartes.teastore.registryclient.Service;
 import tools.descartes.teastore.registryclient.util.RESTClient;
@@ -58,11 +63,16 @@ public class EndpointClientCollection<T> {
 		if (oldServers.size() == newServers.size() && newServers.containsAll(oldServers)) {
 			return;
 		}
+		List<Server> newServersList = new ArrayList<>(newServers);
+		Collections.sort(newServersList, (a, b) -> {
+			return a.getId().compareTo(b.getId());
+		});
+		System.out.println("Updating server IDs.");
 		int i = 0;
-		for (Server serv: newServers) {
+		for (Server serv: newServersList) {
 			clientIdMapping.put(serv, i++);
 		}
-		updateClients(newServers);
+		updateClients(newServersList);
 	}
 	
 	public int getServerID(Server server) {
