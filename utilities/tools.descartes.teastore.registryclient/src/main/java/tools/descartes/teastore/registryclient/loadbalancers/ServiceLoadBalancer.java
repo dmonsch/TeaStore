@@ -65,7 +65,7 @@ public final class ServiceLoadBalancer {
 	private final RetryHandler retryHandler = new DefaultLoadBalancerRetryHandler(5, 2, true);
 
 	private ReadWriteLock loadBalancerModificationLock = new ReentrantReadWriteLock();
-	
+
 	private static Optional<String> hostIDCache = Optional.empty();
 	private static Optional<String> hostNameCache = Optional.empty();
 
@@ -90,11 +90,11 @@ public final class ServiceLoadBalancer {
 					+ getServiceLoadBalancer(service).targetService.getServiceName());
 		}
 	}
-	
+
 	public static int getEndpointCount(Service service) {
 		return getServiceLoadBalancer(service).getEndpointCount();
 	}
-	
+
 	public static String getRegistryHostName() {
 		if (hostNameCache.isPresent()) {
 			return hostNameCache.get();
@@ -108,7 +108,7 @@ public final class ServiceLoadBalancer {
 			return null;
 		}
 	}
-	
+
 	public static String getRegistryHostID() {
 		if (hostIDCache.isPresent()) {
 			return hostIDCache.get();
@@ -122,7 +122,7 @@ public final class ServiceLoadBalancer {
 			return null;
 		}
 	}
-	
+
 	private int getEndpointCount() {
 		return this.serviceServers.size();
 	}
